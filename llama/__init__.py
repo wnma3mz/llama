@@ -4,3 +4,5 @@
 from .generation import LLaMA
 from .model import ModelArgs, Transformer
 from .tokenizer import Tokenizer
+from .model_torch import Transformer as TransformerTorch
+from .my_generation import LLaMA as MyLLaMA

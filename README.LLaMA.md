@@ -1,29 +1,5 @@
 # LLaMA 
 
-本项目基于[LLaMA](https://github.com/facebookresearch/llama)修改而来。出于简单和学习的目的，本项目坚持使用一些易安装、易使用的第三方库（即不使用Transformer、PyTorch Lightning）。
-
-主要新增内容如下：
-
-- 7B 模型最低GPU显存要求14G，这对于小显存的显卡并不友好。这里依据原项目拆分为四个模型。以支持在四张较小显存的显卡机器上并行运行。注：实际总的占用显存会更大
-
-模型拆分后的[下载地址](https://huggingface.co/wnma3mz/llama_fs_7B/tree/main)
-
-下一步计划，在四张显卡上并行微调。
-
-- 参考项目[Peft](https://github.com/huggingface/peft)
-
-
-This project is based on a modification of [LLaMA](https://github.com/facebookresearch/llama). For simplicity and learning purposes, this project sticks to some easy-to-install and easy-to-use third-party libraries (i.e. no Transformer, PyTorch Lightning).
-
-The main additions are as follows:
-
-- 7B models require a minimum GPU video memory of 14G, which is not friendly to small video memory cards. Here it is split into four models based on the original project. This is to support running on multi-card machines with smaller graphics memory. Note: the actual total video memory used will be larger
-
-
-The model split [download address](https://huggingface.co/wnma3mz/llama_fs_7B/tree/main)
-
-=====================================================
-
 This repository is intended as a minimal, hackable and readable example to load [LLaMA](https://ai.facebook.com/blog/large-language-model-llama-meta-ai/) ([arXiv](https://arxiv.org/abs/2302.13971v1)) models and run inference.
 In order to download the checkpoints and tokenizer, fill this [google form](https://forms.gle/jk851eBVbX1m5TAv5)
 
