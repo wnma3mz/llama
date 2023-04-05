@@ -1,5 +1,7 @@
 # LLaMA 
 
+[中文](README.md) [English](README.EN.md) [Origin](README.LLaMA.md)
+
 本项目基于[LLaMA](https://github.com/facebookresearch/llama)修改而来。出于简单和学习的目的，本项目坚持使用一些易安装、易使用的第三方库（即不使用Transformer、PyTorch Lightning）。
 
 For 7B, Batch Size: 32; Seq Len: 512
@@ -19,6 +21,17 @@ For 7B, Batch Size: 32; Seq Len: 512
 - [Prompt-Tuning](https://github.com/mkshing/Prompt-Tuning/)
 
 
+## Setup
+
+```
+pip install -r requirements.txt
+```
+Then in this repository:
+```
+pip install -e .
+```
+
+
 ```bash
 # 当前项目中存在一个ckpts文件夹，文件架构大致如下所示。
 ckpts
@@ -31,37 +44,6 @@ ckpts
 │   └── params.json
 └── tokenizer.model
 ```
-
-
-This project is based on a modification of [LLaMA](https://github.com/facebookresearch/llama). For simplicity and learning purposes, this project sticks to some easy-to-install and easy-to-use third-party libraries (i.e. no Transformer, PyTorch Lightning).
-
-The main additions are as follows:
-
-- 7B models require a minimum GPU video memory of 14G, which is not friendly to small video memory cards. Here it is split into four models based on the original project. This is to support running on multi-card machines with smaller graphics memory. Note: the actual total video memory used will be larger
-
-
-The model split [download address](https://huggingface.co/wnma3mz/llama_fs_7B/tree/main)
-
-=====================================================
-
-This repository is intended as a minimal, hackable and readable example to load [LLaMA](https://ai.facebook.com/blog/large-language-model-llama-meta-ai/) ([arXiv](https://arxiv.org/abs/2302.13971v1)) models and run inference.
-In order to download the checkpoints and tokenizer, fill this [google form](https://forms.gle/jk851eBVbX1m5TAv5)
-
-## Setup
-
-In a conda env with pytorch / cuda available, run:
-```
-pip install -r requirements.txt
-```
-Then in this repository:
-```
-pip install -e .
-```
-
-## Download
-
-Once your request is approved, you will receive links to download the tokenizer and model files.
-Edit the `download.sh` script with the signed url provided in the email to download the model weights and tokenizer.
 
 ## Split Model
 
@@ -89,7 +71,6 @@ torchrun --nproc_per_node n example.py --ckpt_dir ckpts/7B_fsn --tokenizer_path 
 ls -lh ckpts/7B_fs*/
 ```
 
-
 ## Prompt Tuning
 
 For 7B
@@ -98,13 +79,9 @@ For 7B
 torchrun --nproc_per_node 4 example.py --ckpt_dir ckpts/7B_fs4 --tokenizer_path ckpts/tokenizer.model
 ```
 
+TODO
 
 ## Inference
-
-The provided `example.py` can be run on a single or multi-gpu node with `torchrun` and will output completions for two pre-defined prompts. Using `TARGET_FOLDER` as defined in `download.sh`:
-```bash
-torchrun --nproc_per_node MP example.py --ckpt_dir $TARGET_FOLDER/model_size --tokenizer_path $TARGET_FOLDER/tokenizer.model
-```
 
 **Example**
 
