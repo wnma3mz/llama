@@ -1,8 +1,9 @@
 # coding: utf-8
-from pathlib import Path
 import torch
 from tabulate import tabulate
 import os
+
+# Split the 7B model to n files for parallel
 
 
 def print_diff_key(base_ckpt, new_ckpt2):
@@ -18,13 +19,11 @@ def print_diff_key(base_ckpt, new_ckpt2):
 
 if __name__ == "__main__":
     ckpt_dir = "ckpts/7B"
+    n = 2
     base_ckpt = torch.load(
         os.path.join(ckpt_dir, "consolidated.00.pth"), map_location="cpu"
     )
-    # split_ckpt = torch.load(os.path.join(ckpt_dir, "fs_consolidated.00.pth")), map_location="cpu")
-    # print_diff_key(base_ckpt, split_ckpt)
 
-    n = 4
     split_ckpt_lst = [{} for _ in range(n)]
     for k in base_ckpt.keys():
         new_w_lst = []
@@ -41,17 +40,21 @@ if __name__ == "__main__":
             for ch_k in ["wo", "w2"]:
                 if ch_k in k:
                     new_w_lst = torch.split(base_ckpt[k], base_col // n, dim=1)
-            if len(new_w_lst) == 0:
-                new_w_lst = [base_ckpt[k]] * n
+        if len(new_w_lst) == 0:
+            new_w_lst = [base_ckpt[k]] * n
 
         for ckpt, w in zip(split_ckpt_lst, new_w_lst):
             ckpt[k] = w
 
-    if not os.path.isdir(ckpt_dir + "_fs"):
-        os.makedirs(ckpt_dir + "_fs")
-    # It has a few problems. It's still 13GB after each file is stored. A less elegant approach is to reload the model and then save it, so that you get four 13/4 G files.
+    new_ckpt_dir = ckpt_dir + f"_fs{n}"
+    if not os.path.isdir(new_ckpt_dir):
+        os.makedirs(new_ckpt_dir)
+
+    params_f = os.path.join(ckpt_dir, "params.json")
+    os.system(f"cp {params_f} {new_ckpt_dir}")
+    # It has a few problems. It's still 13GB after each file is stored. A less elegant approach is to reload the model and then save it, so that you get four 13/n G files.
     for i, ckpt in enumerate(split_ckpt_lst):
         torch.save(
             ckpt,
-            os.path.join(ckpt_dir + "_fs", f"fs_consolidated.{str(i).zfill(2)}.pth"),
+            os.path.join(new_ckpt_dir, f"fs_consolidated.{str(i).zfill(2)}.pth"),
         )

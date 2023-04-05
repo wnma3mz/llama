@@ -5,5 +5,5 @@ from .generation import LLaMA
 from .model import ModelArgs, Transformer
 from .tokenizer import Tokenizer
 from .model_torch import Transformer as TransformerTorch
-from .model_generate import Transformer as TransformerGen
+from .model_train import Transformer as TransformerTrain
 from .prompt_tuning import PromptEmbedding, PromptTuningConfig

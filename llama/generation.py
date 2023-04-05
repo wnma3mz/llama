@@ -115,6 +115,7 @@ class LLaMA:
 
             if temperature > 0:
                 probs = torch.softmax(logits / temperature, dim=-1)
+                # probs = torch.where(torch.isnan(probs), torch.full_like(probs, 1e-10), probs) # Replace Nan
                 next_token = sample_top_p(probs, top_p)
             else:
                 next_token = torch.argmax(logits, dim=-1)

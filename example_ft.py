@@ -16,13 +16,13 @@ from fairscale.nn.model_parallel.initialize import initialize_model_parallel
 from llama import (
     ModelArgs,
     Transformer,
-    TransformerBak,
     Tokenizer,
     LLaMA,
     PromptEmbedding,
     PromptTuningConfig,
 )
 from dataclasses import dataclass, field, asdict
+
 
 @dataclass
 class FTParams:
@@ -32,10 +32,10 @@ class FTParams:
     peft_type: str = field(default="PROMPT_TUNING")
     task_type: str = field(default="CAUSAL_LM")
 
+
 def setup_model_parallel() -> Tuple[int, int]:
     local_rank = int(os.environ.get("LOCAL_RANK", -1))
     world_size = int(os.environ.get("WORLD_SIZE", -1))
-    # local_rank, world_size = 1, 1
     print(local_rank, world_size)
 
     torch.distributed.init_process_group("nccl")
@@ -59,9 +59,9 @@ def load(
     start_time = time.time()
     checkpoints = sorted(Path(ckpt_dir).glob("*.pth"))
     tuning_checkpoints = sorted(Path(tuning_ckpt_dir).glob("*.pth"))
-    # assert world_size == len(
-    #     checkpoints
-    # ), f"Loading a checkpoint for MP={len(checkpoints)} but world size is {world_size}"
+    assert world_size == len(
+        checkpoints
+    ), f"Loading a checkpoint for MP={len(checkpoints)} but world size is {world_size}"
     ckpt_path = checkpoints[local_rank]
     print("Loading")
     checkpoint = torch.load(ckpt_path, map_location="cpu")
@@ -74,19 +74,23 @@ def load(
     tokenizer = Tokenizer(model_path=tokenizer_path)
     model_args.vocab_size = tokenizer.n_words
     torch.set_default_tensor_type(torch.cuda.HalfTensor)
-    # model = TransformerBak(model_args)
     model = Transformer(model_args)
     torch.set_default_tensor_type(torch.FloatTensor)
     model.load_state_dict(checkpoint, strict=False)
-
 
     kwargs = asdict(FTParams())
     kwargs["token_dim"] = params["dim"]
     peft_config = PromptTuningConfig(**kwargs)
     # word_embeddings is not used
-    prompt_encoder = PromptEmbedding(peft_config, word_embeddings=model.tok_embeddings, tokenizer=tokenizer, init_prompt="")
-    # prompt_encoder.load_state_dict(torch.load(tuning_checkpoints[local_rank], map_location="cpu"), strict=False)
-
+    prompt_encoder = PromptEmbedding(
+        peft_config,
+        word_embeddings=model.tok_embeddings,
+        tokenizer=tokenizer,
+        init_prompt="",
+    )
+    prompt_encoder.load_state_dict(
+        torch.load(tuning_checkpoints[local_rank], map_location="cpu"), strict=False
+    )
 
     generator = LLaMA(model, tokenizer, prompt_encoder)
     print(f"Loaded in {time.time() - start_time:.2f} seconds")
@@ -107,7 +111,13 @@ def main(
         sys.stdout = open(os.devnull, "w")
 
     generator = load(
-        ckpt_dir, tuning_ckpt_dir, tokenizer_path, local_rank, world_size, max_seq_len, max_batch_size
+        ckpt_dir,
+        tuning_ckpt_dir,
+        tokenizer_path,
+        local_rank,
+        world_size,
+        max_seq_len,
+        max_batch_size,
     )
 
     prompts = [

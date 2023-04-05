@@ -2,7 +2,7 @@
 # This software may be used and distributed according to the terms of the GNU General Public License version 3.
 
 from typing import Optional, Tuple
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import math
 
 import torch
@@ -15,10 +15,9 @@ from fairscale.nn.model_parallel.layers import (
     RowParallelLinear,
     ColumnParallelLinear,
 )
-
 from .utils import (
-    apply_rotary_emb,
-    precompute_freqs_cis,
+    apply_rotary_pos_emb,
+    precompute_cos_sin,
     _make_causal_mask,
     _expand_mask,
 )
@@ -87,21 +86,13 @@ class Attention(nn.Module):
             init_method=lambda x: x,
         )
 
-        self.cache_k = torch.zeros(
-            (args.max_batch_size, args.max_seq_len, self.n_local_heads, self.head_dim)
-        )
-        # .cuda()
-        self.cache_v = torch.zeros(
-            (args.max_batch_size, args.max_seq_len, self.n_local_heads, self.head_dim)
-        )
-        # .cuda()
-
     def forward(
         self,
         x: torch.Tensor,
-        start_pos: int,
-        freqs_cis: torch.Tensor,
+        cos,
+        sin,
         mask: Optional[torch.Tensor],
+        start_pos: int = 0,
     ):
         bsz, seqlen, _ = x.shape
         xq, xk, xv = self.wq(x), self.wk(x), self.wv(x)
@@ -110,16 +101,10 @@ class Attention(nn.Module):
         xk = xk.view(bsz, seqlen, self.n_local_heads, self.head_dim)
         xv = xv.view(bsz, seqlen, self.n_local_heads, self.head_dim)
 
-        xq, xk = apply_rotary_emb(xq, xk, freqs_cis=freqs_cis)
+        xq, xk = apply_rotary_pos_emb(xq, xk, cos, sin)
 
-        self.cache_k = self.cache_k.to(xq)
-        self.cache_v = self.cache_v.to(xq)
-
-        self.cache_k[:bsz, start_pos : start_pos + seqlen] = xk
-        self.cache_v[:bsz, start_pos : start_pos + seqlen] = xv
-
-        keys = self.cache_k[:bsz, : start_pos + seqlen]
-        values = self.cache_v[:bsz, : start_pos + seqlen]
+        keys = xk[:, start_pos : start_pos + seqlen]
+        values = xv[:, start_pos : start_pos + seqlen]
 
         xq = xq.transpose(1, 2)
         keys = keys.transpose(1, 2)
@@ -176,14 +161,13 @@ class TransformerBlock(nn.Module):
     def forward(
         self,
         x: torch.Tensor,
-        start_pos: int,
-        freqs_cis: torch.Tensor,
+        cos,
+        sin,
         mask: Optional[torch.Tensor],
+        start_pos: int = 0,
     ):
-        h = x + self.attention.forward(
-            self.attention_norm(x), start_pos, freqs_cis, mask
-        )
-        out = h + self.feed_forward.forward(self.ffn_norm(h))
+        h = x + self.attention(self.attention_norm(x), cos, sin, mask, start_pos)
+        out = h + self.feed_forward(self.ffn_norm(h))
         return out
 
 
@@ -207,21 +191,22 @@ class Transformer(nn.Module):
             params.dim, params.vocab_size, bias=False, init_method=lambda x: x
         )
 
-        self.freqs_cis = precompute_freqs_cis(
-            self.params.dim // self.params.n_heads, self.params.max_seq_len * 2
+        # dim = 4096, n_heads = 32, max_seq_len = 512
+        self.cos_cached, self.sin_cached = precompute_cos_sin(
+            self.params.max_seq_len,
+            self.params.dim // self.params.n_heads,
+            device=self.tok_embeddings.weight.device,
         )
 
     @torch.no_grad()
     def generate(self, tokens: torch.Tensor, start_pos: int, ft_prompts=None):
+        # TODO: Now Generate Bad Text 
         _bsz, seqlen_o = tokens.shape
         h = self.tok_embeddings(tokens)
         if ft_prompts is not None:
             ft_prompts = ft_prompts.to(h.dtype).to(h.device)
             h = torch.cat((ft_prompts, h), dim=1)
         _bsz, seqlen, dim = h.shape
-
-        self.freqs_cis = self.freqs_cis.to(h.device)
-        freqs_cis = self.freqs_cis[start_pos : start_pos + seqlen]
 
         mask = None
         if seqlen_o > 1:
@@ -236,8 +221,48 @@ class Transformer(nn.Module):
 
             mask = _expand_mask(mask, h.dtype, seqlen) + combined_attention_mask
 
+        cos = self.cos_cached[:, start_pos : start_pos + seqlen].to(h.dtype)
+        sin = self.sin_cached[:, start_pos : start_pos + seqlen].to(h.dtype)
+
         for layer in self.layers:
-            h = layer(h, start_pos, freqs_cis, mask)
+            h = layer(h, cos, sin, mask)
         h = self.norm(h)
         output = self.output(h[:, -1, :])  # only compute last logits
         return output.float()
+
+    def forward(
+        self,
+        input_ids: Optional[torch.LongTensor] = None,
+        input_embeds: Optional[torch.LongTensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        labels: Optional[torch.LongTensor] = None,
+        start_pos: int = 0,  # In Train
+    ):
+        if input_embeds is None:
+            _bsz, seqlen = input_ids.shape
+            h = self.tok_embeddings(input_ids)
+        else:
+            _bsz, seqlen, dim = input_embeds.shape
+            h = input_embeds
+
+        mask = None
+        if seqlen > 1:
+            mask = torch.ones((_bsz, seqlen), dtype=torch.bool, device=h.device)
+            past_key_values_length = 0
+            combined_attention_mask = _make_causal_mask(
+                (_bsz, seqlen),
+                h.dtype,
+                device=h.device,
+                past_key_values_length=past_key_values_length,
+            )
+            mask = _expand_mask(mask, h.dtype, seqlen) + combined_attention_mask
+
+        cos = self.cos_cached[:, :seqlen].to(h.dtype)
+        sin = self.sin_cached[:, :seqlen].to(h.dtype)
+
+        for layer in self.layers:
+            h = layer(h, cos, sin, mask)
+        h = self.norm(h)
+
+        logits = self.output(h).float()
+        return logits

@@ -22,9 +22,8 @@ def load(
 ) -> LLaMA:
     start_time = time.time()
     checkpoints = sorted(Path(ckpt_dir).glob("*.pth"))
-    # ckpt_path = checkpoints[0]
+    ckpt_path = checkpoints[0] # only have one file, for 7B
     print("Loading")
-    ckpt_path = ...
     checkpoint = torch.load(ckpt_path, map_location="cpu")
     with open(Path(ckpt_dir) / "params.json", "r") as f:
         params = json.loads(f.read())
@@ -92,7 +91,6 @@ cheese =>""",
         prompts, max_gen_len=256, temperature=temperature, top_p=top_p
     )
 
-    for result in results:
-        print(result)
+    for prompt, result in zip(prompts, results):
+        print(prompt, result.text)
         print("\n==================================\n")
-

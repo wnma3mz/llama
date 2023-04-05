@@ -58,6 +58,8 @@ def load(
     torch.set_default_tensor_type(torch.FloatTensor)
     model.load_state_dict(checkpoint, strict=False)
 
+    # torch.save(model.state_dict(), ckpt_path)
+
     generator = LLaMA(model, tokenizer)
     print(f"Loaded in {time.time() - start_time:.2f} seconds")
     return generator
@@ -110,8 +112,8 @@ cheese =>""",
         prompts, max_gen_len=256, temperature=temperature, top_p=top_p
     )
 
-    for result in results:
-        print(result)
+    for prompt, result in zip(prompts, results):
+        print(prompt, result.text)
         print("\n==================================\n")
 
 
