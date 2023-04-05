@@ -73,13 +73,13 @@ ls -lh ckpts/7B_fs*/
 
 ## Prompt Tuning
 
+尚未测试，可能存在Bug。
+
 For 7B
 ```bash
-# 拆分为四个模型后
-torchrun --nproc_per_node 4 example.py --ckpt_dir ckpts/7B_fs4 --tokenizer_path ckpts/tokenizer.model
+# 拆分为四个模型后，在ft_main.py修改对应的配置文件
+torchrun --nproc_per_node 4 ft_main.py 
 ```
-
-TODO
 
 ## Inference
 

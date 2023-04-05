@@ -200,7 +200,7 @@ class Transformer(nn.Module):
 
     @torch.no_grad()
     def generate(self, tokens: torch.Tensor, start_pos: int, ft_prompts=None):
-        # TODO: Now Generate Bad Text 
+        # TODO: Now Generate Bad Text
         _bsz, seqlen_o = tokens.shape
         h = self.tok_embeddings(tokens)
         if ft_prompts is not None:
@@ -235,27 +235,30 @@ class Transformer(nn.Module):
         input_ids: Optional[torch.LongTensor] = None,
         input_embeds: Optional[torch.LongTensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
-        labels: Optional[torch.LongTensor] = None,
         start_pos: int = 0,  # In Train
     ):
         if input_embeds is None:
             _bsz, seqlen = input_ids.shape
             h = self.tok_embeddings(input_ids)
         else:
+            # For Prompt Tuning
             _bsz, seqlen, dim = input_embeds.shape
             h = input_embeds
 
-        mask = None
-        if seqlen > 1:
-            mask = torch.ones((_bsz, seqlen), dtype=torch.bool, device=h.device)
-            past_key_values_length = 0
+        if attention_mask is None:
+            mask = None
+        else:
+            attention_mask = attention_mask.to(h.device)
+            past_key_values_length = 0 # TODO 
             combined_attention_mask = _make_causal_mask(
                 (_bsz, seqlen),
                 h.dtype,
                 device=h.device,
                 past_key_values_length=past_key_values_length,
             )
-            mask = _expand_mask(mask, h.dtype, seqlen) + combined_attention_mask
+            mask = (
+                _expand_mask(attention_mask, h.dtype, seqlen) + combined_attention_mask
+            )
 
         cos = self.cos_cached[:, :seqlen].to(h.dtype)
         sin = self.sin_cached[:, :seqlen].to(h.dtype)

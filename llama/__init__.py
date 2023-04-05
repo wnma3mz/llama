@@ -7,3 +7,4 @@ from .tokenizer import Tokenizer
 from .model_torch import Transformer as TransformerTorch
 from .model_train import Transformer as TransformerTrain
 from .prompt_tuning import PromptEmbedding, PromptTuningConfig
+from .finetuning import LLaMAFT

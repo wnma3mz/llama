@@ -49,16 +49,15 @@ def setup_model_parallel() -> Tuple[int, int]:
 
 def load(
     ckpt_dir: str,
-    tuning_ckpt_dir: str,
     tokenizer_path: str,
     local_rank: int,
     world_size: int,
     max_seq_len: int,
     max_batch_size: int,
+    tuning_ckpt,
 ) -> LLaMA:
     start_time = time.time()
     checkpoints = sorted(Path(ckpt_dir).glob("*.pth"))
-    tuning_checkpoints = sorted(Path(tuning_ckpt_dir).glob("*.pth"))
     assert world_size == len(
         checkpoints
     ), f"Loading a checkpoint for MP={len(checkpoints)} but world size is {world_size}"
@@ -80,17 +79,10 @@ def load(
 
     kwargs = asdict(FTParams())
     kwargs["token_dim"] = params["dim"]
+
     peft_config = PromptTuningConfig(**kwargs)
-    # word_embeddings is not used
-    prompt_encoder = PromptEmbedding(
-        peft_config,
-        word_embeddings=model.tok_embeddings,
-        tokenizer=tokenizer,
-        init_prompt="",
-    )
-    prompt_encoder.load_state_dict(
-        torch.load(tuning_checkpoints[local_rank], map_location="cpu"), strict=False
-    )
+    prompt_encoder = PromptEmbedding(peft_config, is_inference=True)
+    prompt_encoder.load_state_dict(tuning_ckpt)
 
     generator = LLaMA(model, tokenizer, prompt_encoder)
     print(f"Loaded in {time.time() - start_time:.2f} seconds")
@@ -110,14 +102,23 @@ def main(
     if local_rank > 0:
         sys.stdout = open(os.devnull, "w")
 
+    tuning_checkpoints_path = sorted(Path(tuning_ckpt_dir).glob("*.pth"))
+    tuning_ckpt = {}
+    tuning_checkpoints = [
+        torch.load(tuning_checkpoints_path[local_rank], map_location="cpu")
+        for local_rank in range(world_size)
+    ]
+    for k in tuning_checkpoints[0].keys():
+        tuning_ckpt[k] = torch.cat([ckpt[k] for ckpt in tuning_checkpoints], dim=1)
+
     generator = load(
         ckpt_dir,
-        tuning_ckpt_dir,
         tokenizer_path,
         local_rank,
         world_size,
         max_seq_len,
         max_batch_size,
+        tuning_ckpt,
     )
 
     prompts = [

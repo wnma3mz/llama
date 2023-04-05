@@ -1,4 +1,5 @@
-# coding=utf-8
+# -*- encoding: utf-8 -*-
+# Modified based on https://github.com/huggingface/peft/blob/main/src/peft/tuners/prompt_tuning.py
 # Copyright 2023-present the HuggingFace Inc. team.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,6 +20,8 @@ from dataclasses import dataclass, field
 from typing import Optional, Union
 
 import torch
+
+from fairscale.nn.model_parallel.layers import ParallelEmbedding
 
 
 class PromptTuningInit(str, enum.Enum):
@@ -164,27 +167,27 @@ class PromptEmbedding(torch.nn.Module):
     Output Shape: (batch_size, total_virtual_tokens, token_dim)
     """
 
-    def __init__(self, config, word_embeddings=None, tokenizer=None, init_prompt=None):
+    def __init__(self, config, word_embedding_weights=None, is_inference=False):
         super().__init__()
 
         total_virtual_tokens = (
             config.num_virtual_tokens * config.num_transformer_submodules
         )
         self.config = config
-        self.embedding = torch.nn.Embedding(total_virtual_tokens, config.token_dim)
 
-        if word_embeddings is not None:
-            init_token_ids = tokenizer.encode(init_prompt, bos=False, eos=False)
-            init_token_ids = torch.LongTensor(init_token_ids[:total_virtual_tokens])
-            word_embedding_weights = word_embeddings(init_token_ids.cuda())
-            word_embedding_weights = word_embedding_weights.detach().clone()
-            self.embedding.weight = nn.Parameter(
-                word_embedding_weights.to(torch.float32)
+        if is_inference:
+            self.embedding = torch.nn.Embedding(total_virtual_tokens, config.token_dim)
+        else:
+            self.embedding = ParallelEmbedding(
+                total_virtual_tokens, config.token_dim, init_method=lambda x: x
             )
+            if word_embedding_weights is not None:
+                word_embedding_weights = word_embedding_weights.detach().clone()
+                self.embedding.weight = nn.Parameter(
+                    word_embedding_weights.to(torch.float32)
+                )
 
-        # self.embedding = ParallelEmbedding(
-        #     total_virtual_tokens, config.token_dim, init_method=lambda x: x
-        # )
+
 
         # No Doing
         # if config.prompt_tuning_init == PromptTuningInit.TEXT:

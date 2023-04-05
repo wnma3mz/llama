@@ -100,3 +100,12 @@ def _make_causal_mask(
     return mask[None, None, :, :].expand(
         bsz, 1, tgt_len, tgt_len + past_key_values_length
     )
+
+
+# https://github.com/mkshing/Prompt-Tuning/blob/7a82e2fd232a2a33f57a1355085022b86fc7ba58/model.py#LL96-L105
+def _extend_attention_mask(attention_mask, n_tokens):
+    if len(list(attention_mask.shape)) == 1:
+        attention_mask = attention_mask.unsqueeze(0)
+
+    n_batches = attention_mask.shape[0]
+    return torch.cat([torch.full((n_batches, n_tokens), 1.), attention_mask], dim=1)
