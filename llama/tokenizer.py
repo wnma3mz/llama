@@ -6,8 +6,6 @@ from typing import List
 import os
 
 
-
-
 class Tokenizer:
     def __init__(self, model_path: str):
         # reload tokenizer
@@ -22,7 +20,7 @@ class Tokenizer:
 
         self.bos_token_id = self.bos_id
         self.eos_token_id = self.eos_id
-        self.pad_token_id = self.pad_id        
+        self.pad_token_id = self.pad_id
         assert self.sp_model.vocab_size() == self.sp_model.get_piece_size()
 
     def encode(self, s: str, bos: bool, eos: bool) -> List[int]:

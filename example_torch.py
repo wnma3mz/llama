@@ -14,6 +14,7 @@ from pathlib import Path
 from llama import Tokenizer, LLaMA, ModelArgs
 from llama import Transformer2 as Transformer
 
+
 def load(
     ckpt_dir: str,
     tokenizer_path: str,
@@ -22,7 +23,7 @@ def load(
 ) -> LLaMA:
     start_time = time.time()
     checkpoints = sorted(Path(ckpt_dir).glob("*.pth"))
-    ckpt_path = checkpoints[0] # only have one file, for 7B
+    ckpt_path = checkpoints[0]  # only have one file, for 7B
     print("Loading")
     checkpoint = torch.load(ckpt_path, map_location="cpu")
     with open(Path(ckpt_dir) / "params.json", "r") as f:
@@ -43,7 +44,6 @@ def load(
     return generator
 
 
-
 if __name__ == "__main__":
     # fire.Fire(main)
 
@@ -51,12 +51,8 @@ if __name__ == "__main__":
     tokenizer_path = "ckpts/tokenizer.model"
     max_seq_len: int = 512
     max_batch_size: int = 32
-    model = load(
-        ckpt_dir, tokenizer_path, max_seq_len, max_batch_size
-    )
-    generator = load(
-        ckpt_dir, tokenizer_path, max_seq_len, max_batch_size
-    )
+    model = load(ckpt_dir, tokenizer_path, max_seq_len, max_batch_size)
+    generator = load(ckpt_dir, tokenizer_path, max_seq_len, max_batch_size)
     temperature: float = 0.8
     top_p: float = 0.95
 

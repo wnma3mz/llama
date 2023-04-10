@@ -15,19 +15,15 @@ from fairscale.nn.model_parallel.initialize import initialize_model_parallel
 
 from torch.utils.data import DataLoader
 
-from llama import (
-    ModelArgs,
-    TransformerTrain,
-    Tokenizer,
-    LLaMAFT
-)
+from llama import ModelArgs, TransformerTrain, Tokenizer, LLaMAFT
 from dataclasses import dataclass, field, asdict
 
 import warnings
 
 warnings.filterwarnings("ignore")
 
-# CUDA out of memory. 
+# CUDA out of memory.
+
 
 @dataclass
 class Params:
@@ -39,7 +35,7 @@ class Params:
     # File Params
     ckpt_dir: str = field(default="./ckpts/7B_fs4")
     tuning_ckpt_dir: str = field(default="./ckpts/7B_fsft4")
-    dataset_fname: str = field(default="./datasets/alpaca_data_token.pkl") # Just Test
+    dataset_fname: str = field(default="./datasets/alpaca_data_token.pkl")  # Just Test
     tokenizer_path: str = field(default="./ckpts/tokenizer.model")
 
     # Model Params
@@ -123,7 +119,8 @@ def train_func(model_ft, optimizer, train_dataloader, local_rank):
         torch.save(
             model_ft.prompt_encoder.state_dict(),
             os.path.join(
-                Params.tuning_ckpt_dir, f"ft_consolidated.{str(local_rank).zfill(2)}.pth"
+                Params.tuning_ckpt_dir,
+                f"ft_consolidated.{str(local_rank).zfill(2)}.pth",
             ),
         )
 

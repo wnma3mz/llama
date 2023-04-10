@@ -249,7 +249,7 @@ class Transformer(nn.Module):
             mask = None
         else:
             attention_mask = attention_mask.to(h.device)
-            past_key_values_length = 0 # TODO 
+            past_key_values_length = 0  # TODO
             combined_attention_mask = _make_causal_mask(
                 (_bsz, seqlen),
                 h.dtype,

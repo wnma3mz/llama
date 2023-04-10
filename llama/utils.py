@@ -108,4 +108,4 @@ def _extend_attention_mask(attention_mask, n_tokens):
         attention_mask = attention_mask.unsqueeze(0)
 
     n_batches = attention_mask.shape[0]
-    return torch.cat([torch.full((n_batches, n_tokens), 1.), attention_mask], dim=1)
+    return torch.cat([torch.full((n_batches, n_tokens), 1.0), attention_mask], dim=1)

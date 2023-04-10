@@ -176,17 +176,19 @@ class SupervisedTokenDataset(Dataset):
         super(SupervisedTokenDataset, self).__init__()
         with open(data_path, "rb") as f:
             data_dict = pickle.load(f)
-        max_len = len(data_dict["input_ids"]) // 10000  # 只取/10测试
+        self.input_ids, self.labels = data_dict["input_ids"], data_dict["labels"]
+
+        # max_len = len(data_dict["input_ids"]) // 10000  # 只取/10测试
 
         i = 0
         self.input_ids, self.labels = [], []
         for input_ids, labels in zip(data_dict["input_ids"], data_dict["labels"]):
-            if len(input_ids) < 128:
+            if len(input_ids) < 480:
                 self.input_ids.append(input_ids)
                 self.labels.append(labels)
                 i += 1
-            if i > max_len:
-                break
+            # if i > max_len:
+            #     break
 
     def __len__(self):
         return len(self.input_ids)

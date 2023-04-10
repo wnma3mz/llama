@@ -35,6 +35,8 @@ PROMPT_DICT = {
         "### Instruction:\n{instruction}\n\n### Response:"
     ),
 }
+
+
 @dataclass
 class FTParams:
     # Fine-Tuning Model Params
@@ -159,7 +161,9 @@ peppermint => menthe poivrée
 plush girafe => girafe peluche
 
 cheese =>""",
-        PROMPT_DICT["prompt_no_input"].format_map({"instruction":"Give three tips for staying healthy."}),
+        PROMPT_DICT["prompt_no_input"].format_map(
+            {"instruction": "Give three tips for staying healthy."}
+        ),
     ]
     results = generator.generate(
         prompts, max_gen_len=256, temperature=temperature, top_p=top_p

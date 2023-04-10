@@ -187,8 +187,6 @@ class PromptEmbedding(torch.nn.Module):
                     word_embedding_weights.to(torch.float32)
                 )
 
-
-
         # No Doing
         # if config.prompt_tuning_init == PromptTuningInit.TEXT:
         #     from transformers import AutoTokenizer

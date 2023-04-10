@@ -160,7 +160,7 @@ def train_func(model_ft, optimizer, train_dataloader, local_rank):
         # Just Save PromptEncoder
         train_epoch_loss = np.sum(loss_lst) / len(train_dataloader)
         train_ppl = np.exp(train_epoch_loss)
-        print(f"{ep=}: {train_ppl=} {train_epoch_loss=}")
+        print(f"{ep}: {train_ppl} {train_epoch_loss}")
         torch.save(
             model_ft.prompt_encoder.state_dict(),
             os.path.join(
@@ -168,8 +168,9 @@ def train_func(model_ft, optimizer, train_dataloader, local_rank):
             ),
         )
 
-        np.save(f'loss.{ep}.npy', loss_lst)
+        np.save(f"loss.{ep}.npy", loss_lst)
         # np.load(f'loss.{ep}.npy')
+
 
 def main():
     local_rank, world_size = setup_model_parallel()
