@@ -21,17 +21,18 @@ class ModelOutput:
 
 
 class LLaMAFT(nn.Module):
-    def __init__(self, decoder: Transformer, prompt_encoder: PromptEmbedding):
+    def __init__(self, decoder: Transformer, prompt_encoder: PromptEmbedding = None):
         super().__init__()
 
         self.decoder = decoder
         self.prompt_encoder = prompt_encoder
-        self.peft_config = self.prompt_encoder.config
+        if prompt_encoder:
+            self.peft_config = self.prompt_encoder.config
 
-        self.num_tokens = self.peft_config.num_virtual_tokens
-        self.prompt_tokens = torch.arange(
-            self.num_tokens * self.peft_config.num_transformer_submodules
-        ).long()
+            self.num_tokens = self.peft_config.num_virtual_tokens
+            self.prompt_tokens = torch.arange(
+                self.num_tokens * self.peft_config.num_transformer_submodules
+            ).long()
 
     def get_prompt(self, bsz: int, local_rank):
         prompt_tokens = self.prompt_tokens.unsqueeze(0).expand(bsz, -1).to(local_rank)
@@ -56,10 +57,11 @@ class LLaMAFT(nn.Module):
 
         bsz, seqlen_o, dim = input_embeds.shape
 
-        # Concat Prompt and Embedding
-        prompts = self.get_prompt(bsz, local_rank)
-        prompts = prompts.to(input_embeds.dtype).to(local_rank)
-        input_embeds = torch.cat((prompts, input_embeds), dim=1)
+        if self.prompt_encoder is not None:
+            # Concat Prompt and Embedding
+            prompts = self.get_prompt(bsz, local_rank)
+            prompts = prompts.to(input_embeds.dtype).to(local_rank)
+            input_embeds = torch.cat((prompts, input_embeds), dim=1)
 
         bsz, seqlen, dim = input_embeds.shape
 
@@ -74,8 +76,9 @@ class LLaMAFT(nn.Module):
 
         if labels is not None:
             # Concat Prompt and Labels
-            prefix_labels = torch.full((bsz, self.num_tokens), -100)
-            labels = torch.cat((prefix_labels, labels), dim=1)
+            if self.prompt_encoder is not None:
+                prefix_labels = torch.full((bsz, self.num_tokens), -100)
+                labels = torch.cat((prefix_labels, labels), dim=1)
 
             # Calculate Loss
             loss_fn = nn.CrossEntropyLoss()
@@ -85,6 +88,5 @@ class LLaMAFT(nn.Module):
             shift_logits = shift_logits.view(-1, self.decoder.vocab_size)
             shift_labels = shift_labels.view(-1).to(shift_logits.device)
             loss = loss_fn(shift_logits, shift_labels)
-            print(loss)
             return ModelOutput(loss=loss, logits=logits)
         return ModelOutput(loss=None, logits=logits)

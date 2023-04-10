@@ -20,6 +20,15 @@ def banned_token(logits):
     return logits
 
 
+def stop_func(next_token, last_token):
+    # Break Token Id：连续出现两个\n\n
+    # if next_token[0] == 13 and last_token[0] == 13:
+    #     return True
+    # if next_token == eos_token_id:
+    #     return True
+    return False
+
+
 @dataclass
 class Output:
     text: str
@@ -74,7 +83,7 @@ class LLaMA:
     def get_prompt(self, bsz: int):
         prompts = self.prompt_encoder.embedding.weight.repeat(bsz, 1, 1)
         return prompts
-    
+
     def generate(
         self,
         prompts: List[str] = None,
@@ -100,7 +109,9 @@ class LLaMA:
 
         total_len = min(params.max_seq_len, max_gen_len + max_prompt_size)
 
+        # Preprocess tokens, full all tokens self.tokenizer.pad_id
         tokens = torch.full((bsz, total_len), self.tokenizer.pad_id).cuda().long()
+        # For Prompt to Set Inputs Ids
         for k, t in enumerate(prompt_tokens):
             tokens[k, : len(t)] = torch.tensor(t).long()
         input_text_mask = tokens != self.tokenizer.pad_id
@@ -109,10 +120,15 @@ class LLaMA:
 
         last_token = -torch.ones(bsz)
         for cur_pos in range(start_pos, total_len):
-            logits = self.model.generate(tokens[:, prev_pos:cur_pos], prev_pos, ft_prompts)
+            if cur_pos > start_pos:
+                ft_prompts = None
+            logits = self.model.generate(
+                tokens[:, prev_pos:cur_pos], prev_pos, ft_prompts
+            )
 
             logits = banned_token(logits)  # New Add
 
+            # Get The Next Token
             if temperature > 0:
                 probs = torch.softmax(logits / temperature, dim=-1)
                 # probs = torch.where(torch.isnan(probs), torch.full_like(probs, 1e-10), probs) # Replace Nan
@@ -120,16 +136,19 @@ class LLaMA:
             else:
                 next_token = torch.argmax(logits, dim=-1)
             next_token = next_token.reshape(-1)
-            # only replace token if prompt has already been generated
+
+            # Update. only replace token if prompt has already been generated
+            # input_ids = torch.cat([input_ids, next_tokens[:, None]], dim=-1)
+            # 如果当前token是空值，则替换为生成结果
             next_token = torch.where(
                 input_text_mask[:, cur_pos], tokens[:, cur_pos], next_token
             )
-
             tokens[:, cur_pos] = next_token
+
             prev_pos = cur_pos
 
-            # Break Token Id
-            if next_token[0] == 13 and last_token[0] == 13:
+            # Stopping Criteria
+            if stop_func(next_token, last_token):
                 break
             last_token = next_token
 

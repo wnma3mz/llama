@@ -23,7 +23,18 @@ from llama import (
 )
 from dataclasses import dataclass, field, asdict
 
-
+PROMPT_DICT = {
+    "prompt_input": (
+        "Below is an instruction that describes a task, paired with an input that provides further context. "
+        "Write a response that appropriately completes the request.\n\n"
+        "### Instruction:\n{instruction}\n\n### Input:\n{input}\n\n### Response:"
+    ),
+    "prompt_no_input": (
+        "Below is an instruction that describes a task. "
+        "Write a response that appropriately completes the request.\n\n"
+        "### Instruction:\n{instruction}\n\n### Response:"
+    ),
+}
 @dataclass
 class FTParams:
     # Fine-Tuning Model Params
@@ -102,7 +113,8 @@ def main(
     if local_rank > 0:
         sys.stdout = open(os.devnull, "w")
 
-    tuning_checkpoints_path = sorted(Path(tuning_ckpt_dir).glob("*.pth"))
+    tuning_checkpoints_path = sorted(Path(tuning_ckpt_dir).glob("prefix.0.*.pth"))
+    print(tuning_checkpoints_path)
     tuning_ckpt = {}
     tuning_checkpoints = [
         torch.load(tuning_checkpoints_path[local_rank], map_location="cpu")
@@ -147,13 +159,14 @@ peppermint => menthe poivrée
 plush girafe => girafe peluche
 
 cheese =>""",
+        PROMPT_DICT["prompt_no_input"].format_map({"instruction":"Give three tips for staying healthy."}),
     ]
     results = generator.generate(
         prompts, max_gen_len=256, temperature=temperature, top_p=top_p
     )
 
     for prompt, result in zip(prompts, results):
-        print(prompt, result.text)
+        print(prompt, result)
         print("\n==================================\n")
 
 
