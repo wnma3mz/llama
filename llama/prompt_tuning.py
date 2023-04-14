@@ -175,39 +175,13 @@ class PromptEmbedding(torch.nn.Module):
         )
         self.config = config
 
-        if is_inference:
-            self.embedding = torch.nn.Embedding(total_virtual_tokens, config.token_dim)
-        else:
-            self.embedding = ParallelEmbedding(
-                total_virtual_tokens, config.token_dim, init_method=lambda x: x
-            )
+        self.embedding = torch.nn.Embedding(total_virtual_tokens, config.token_dim)
+        if not is_inference:
             if word_embedding_weights is not None:
                 word_embedding_weights = word_embedding_weights.detach().clone()
                 self.embedding.weight = nn.Parameter(
                     word_embedding_weights.to(torch.float32)
                 )
-
-        # No Doing
-        # if config.prompt_tuning_init == PromptTuningInit.TEXT:
-        #     from transformers import AutoTokenizer
-
-        #     tokenizer = AutoTokenizer.from_pretrained(config.tokenizer_name_or_path)
-        #     init_text = config.prompt_tuning_init_text
-        #     init_token_ids = tokenizer(init_text)["input_ids"]
-        #     # Trim or iterate until num_text_tokens matches total_virtual_tokens
-        #     num_text_tokens = len(init_token_ids)
-        #     if num_text_tokens > total_virtual_tokens:
-        #         init_token_ids = init_token_ids[:total_virtual_tokens]
-        #     elif num_text_tokens < total_virtual_tokens:
-        #         num_reps = math.ceil(total_virtual_tokens / num_text_tokens)
-        #         init_token_ids = init_token_ids * num_reps
-        #     init_token_ids = init_token_ids[:total_virtual_tokens]
-
-        #     word_embedding_weights = (
-        #         word_embeddings(torch.LongTensor(init_token_ids)).detach().clone()
-        #     )
-        #     word_embedding_weights = word_embedding_weights.to(torch.float32)
-        #     self.embedding.weight = torch.nn.Parameter(word_embedding_weights)
 
     def forward(self, indices):
         # Just get embeddings

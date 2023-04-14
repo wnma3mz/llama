@@ -14,7 +14,7 @@ from datasets import DataCollatorForSupervisedDataset, SupervisedTokenDataset
 from fairscale.nn.model_parallel.initialize import initialize_model_parallel
 
 from torch.utils.data import DataLoader
-
+import math
 from llama import (
     ModelArgs,
     TransformerTrain,
@@ -43,11 +43,10 @@ class Params:
     tuning_ckpt_dir: str = field(default="./ckpts/7B_ft4")
     dataset_fname: str = field(default="./datasets/alpaca_data_token.pkl")  # Just Test
     tokenizer_path: str = field(default="./ckpts/tokenizer.model")
-    init_vocab: bool = field(default=True)
 
     init_prompt: str = field(
-        default="I am a LLaMA model and I will give an absolutely objective response."
-    )  # Not Use
+        default="Below is an instruction that describes a task. Write a response that appropriately completes the request.\n\n"
+    )
 
     # Model Params
     max_seq_len: int = field(default=512)
@@ -106,21 +105,24 @@ def load_model(
     # Fine-Tuning Head
     kwargs = asdict(FTParams())
     kwargs["token_dim"] = params["dim"]
-    if Params.init_vocab:
-        # init_token_ids = tokenizer.encode(Params.init_prompt, bos=True, eos=False)
-        # kwargs["num_virtual_tokens"] = len(init_token_ids)
-        # init_token_ids = torch.LongTensor(init_token_ids)
-        # word_embedding_weights = model.tok_embeddings(init_token_ids.to(local_rank))
-        word_embedding_weights = model.tok_embeddings.weight[
-            : kwargs["num_virtual_tokens"]
-        ]
+    if Params.init_prompt:
+        init_token_ids = tokenizer.encode(Params.init_prompt, bos=True, eos=False)
+        num_text_tokens = len(init_token_ids)
+        if num_text_tokens > kwargs["num_virtual_tokens"]:
+            init_token_ids = init_token_ids[: kwargs["num_virtual_tokens"]]
+        elif num_text_tokens < kwargs["num_virtual_tokens"]:
+            num_reps = math.ceil(kwargs["num_virtual_tokens"] / num_text_tokens)
+            init_token_ids = init_token_ids * num_reps
+        init_token_ids = init_token_ids[: kwargs["num_virtual_tokens"]]
+        word_embedding_weights = model.tok_embeddings(
+            torch.LongTensor(init_token_ids).to(local_rank)
+        )
     else:
         word_embedding_weights = None
 
     peft_config = PromptTuningConfig(**kwargs)
     # Init From Model Word Embedding
     prompt_encoder = PromptEmbedding(peft_config, word_embedding_weights)
-
     model_ft = LLaMAFT(model, prompt_encoder)
     print(f"Load Model Cost Time: {time.time() - start_time:.2f} s")
     return model_ft, tokenizer

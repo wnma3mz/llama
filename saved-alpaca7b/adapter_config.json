@@ -1,0 +1,14 @@
+{
+  "base_model_name_or_path": "decapoda-research/llama-7b-hf",
+  "inference_mode": true,
+  "num_attention_heads": 32,
+  "num_layers": 32,
+  "num_transformer_submodules": 1,
+  "num_virtual_tokens": 32,
+  "peft_type": "PROMPT_TUNING",
+  "prompt_tuning_init": "TEXT",
+  "prompt_tuning_init_text": "Below is an instruction that describes a task. Write a response that appropriately completes the request.\n\n",
+  "task_type": "CAUSAL_LM",
+  "token_dim": 4096,
+  "tokenizer_name_or_path": null
+}

@@ -73,7 +73,7 @@ ls -lh ckpts/7B_fs*/
 
 ## Prompt Tuning
 
-尚未测试，可能存在Bug。
+训练代码存在Bug。
 
 For 7B
 ```bash
@@ -99,9 +99,18 @@ torchrun --nproc_per_node 2 example.py --ckpt_dir ckpts/7B_fs2 --max_seq_len 512
 
 微调后的推理
 
+当前代码暂时无法训练:(
+
 ```bash
 torchrun --nproc_per_node 4 example_ft.py --ckpt_dir ckpts/7B_fs4 --tuning_ckpt_dir ckpts/7B_ft4 --tokenizer_path ckpts/tokenizer.model
 ```
+
+使用HuggingFace和Peft的Prompt Tuning后的模型见`saved-alpaca7b`。
+
+```bash
+torchrun --nproc_per_node 4 example_ft.py --ckpt_dir ckpts/7B_fs4 --tuning_ckpt_path saved-alpaca7b/adapter_model.bin --tokenizer_path ckpts/tokenizer.model
+```
+
 
 ## Reference
 

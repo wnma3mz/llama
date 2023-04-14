@@ -115,15 +115,11 @@ def main(
     if local_rank > 0:
         sys.stdout = open(os.devnull, "w")
 
-    tuning_checkpoints_path = sorted(Path(tuning_ckpt_dir).glob("prefix.0.*.pth"))
-    print(tuning_checkpoints_path)
-    tuning_ckpt = {}
-    tuning_checkpoints = [
-        torch.load(tuning_checkpoints_path[local_rank], map_location="cpu")
-        for local_rank in range(world_size)
-    ]
-    for k in tuning_checkpoints[0].keys():
-        tuning_ckpt[k] = torch.cat([ckpt[k] for ckpt in tuning_checkpoints], dim=1)
+    tuning_ckpt = torch.load(tuning_ckpt_dir, map_location="cpu")
+    # If Fine-Tuning by HuggingFace
+    if "prompt_embeddings" in tuning_ckpt:
+        tuning_ckpt["embedding.weight"] = tuning_ckpt["prompt_embeddings"]
+        del tuning_ckpt["prompt_embeddings"]
 
     generator = load(
         ckpt_dir,

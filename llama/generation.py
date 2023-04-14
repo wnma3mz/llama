@@ -100,9 +100,10 @@ class LLaMA:
         elif prompt_tokens is None:
             raise Exception("Please input prompts or prompt_tokens.")
 
-        ft_prompts = None
+        ft_prompts, prompt_pos = None, 0
         if self.prompt_encoder:
             ft_prompts = self.get_prompt(bsz)
+            prompt_pos = ft_prompts.shape[1]
 
         min_prompt_size = min([len(t) for t in prompt_tokens])
         max_prompt_size = max([len(t) for t in prompt_tokens])
@@ -123,7 +124,7 @@ class LLaMA:
             if cur_pos > start_pos:
                 ft_prompts = None
             logits = self.model.generate(
-                tokens[:, prev_pos:cur_pos], prev_pos, ft_prompts
+                tokens[:, prev_pos:cur_pos], prev_pos if prev_pos == 0 else prev_pos + prompt_pos, ft_prompts
             )
 
             logits = banned_token(logits)  # New Add
