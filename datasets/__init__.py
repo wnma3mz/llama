@@ -1,1 +1,5 @@
-from .datasets import DataCollatorForSupervisedDataset, SupervisedTokenDataset
+from .datasets import (
+    DataCollatorForSupervisedDataset,
+    SupervisedTokenDataset,
+    SupervisedDataset,
+)

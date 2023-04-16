@@ -10,9 +10,7 @@ import torch
 import transformers
 from torch.utils.data import Dataset
 import pickle
-from llama import (
-    Tokenizer
-)
+from llama import Tokenizer
 
 IGNORE_INDEX = -100
 PROMPT_DICT = {
@@ -31,9 +29,7 @@ CUTOFF_LEN = 512
 bos_token_id, pad_token_id, eos_token_id = 0, 0, 0
 
 
-def _tokenize_fn(
-    text: str, tokenizer: Tokenizer
-) -> Dict:
+def _tokenize_fn(text: str, tokenizer: Tokenizer) -> Dict:
     """Tokenize a list of strings."""
     token_ids = tokenizer.encode(text, bos=True, eos=False)
     token_ids[0] = bos_token_id
@@ -41,9 +37,9 @@ def _tokenize_fn(
         token_ids = token_ids[:CUTOFF_LEN]
     else:
         token_ids += [eos_token_id] * (CUTOFF_LEN - len(token_ids))
-    
+
     input_ = torch.tensor(token_ids)
-    
+
     label_ = input_.clone()
     label_[label_ == pad_token_id] = IGNORE_INDEX
 
@@ -113,6 +109,7 @@ def jload(f, mode="r"):
 @dataclass
 class DataCollatorForSupervisedDataset(object):
     """Collate examples for supervised fine-tuning."""
+
     def __call__(self, instances: Sequence[Dict]) -> Dict[str, torch.Tensor]:
         input_ids, labels = tuple(
             [instance[key] for instance in instances] for key in ("input_ids", "labels")
@@ -148,9 +145,7 @@ class SupervisedDataset(Dataset):
             else prompt_no_input.format_map(example)
             for example in list_data_dict
         ]
-        targets = [
-            f"{example['output']}" for example in list_data_dict
-        ]
+        targets = [f"{example['output']}" for example in list_data_dict]
 
         data_dict = preprocess(sources, targets, tokenizer)
 
@@ -180,7 +175,6 @@ class SupervisedTokenDataset(Dataset):
         return dict(input_ids=self.input_ids[i], labels=self.labels[i])
 
 
-
 if __name__ == "__main__":
     tokenizer = Tokenizer(model_path="ckpts/tokenizer.model")
 
@@ -189,18 +183,17 @@ if __name__ == "__main__":
     data = {
         "instruction": "Propose a strategy to build an effective landing page.",
         "input": "",
-        "output": "A strategy to build an effective landing page is to design a page that is easy to scan, visually appealing, and speaks directly to the target audience. The page should have a clear headline that informs users of the page\u2019s purpose. It should also contain helpful, relevant information and a compelling call to action. Additionally, it should leverage A/B testing to test different versions of the page to assess its effectiveness."
+        "output": "A strategy to build an effective landing page is to design a page that is easy to scan, visually appealing, and speaks directly to the target audience. The page should have a clear headline that informs users of the page\u2019s purpose. It should also contain helpful, relevant information and a compelling call to action. Additionally, it should leverage A/B testing to test different versions of the page to assess its effectiveness.",
     }
     s = PROMPT_DICT["prompt_no_input"].format_map(data)
-    t = data['output']
-    examples = s+t
+    t = data["output"]
+    examples = s + t
 
     data_module = SupervisedDataset(fname, tokenizer)
     print("Cost Time: {}s".format(time.time() - s1))
 
-
     with open(fname.split(".json")[0] + "_token.pkl", "wb") as f:
-        data_dict = pickle.dump(
+        pickle.dump(
             {"input_ids": data_module.input_ids, "labels": data_module.labels}, f
         )
 

@@ -4,6 +4,19 @@
 
 本项目基于[LLaMA](https://github.com/facebookresearch/llama)修改而来。出于简单和学习的目的，本项目坚持使用一些易安装、易使用的第三方库（即不使用Transformer、PyTorch Lightning）。
 
+完成功能：
+
+- [x] 拆分模型，可以在多显卡小显存机器上并行推理
+- [x] 完成并行微调
+
+下一步：
+
+- [ ] 将微调后的权重文件转换为[llama.cpp](https://github.com/ggerganov/llama.cpp)权重文件，在CPU机器上进行推理
+- [ ] 对当前微调方式进行优化。但不考虑实现如Lora等相对复杂的微调方法
+- [ ] 在尽可能不引入复杂依赖的前提下，加速微调且降低显存需求。手段包括但不局限于：低精度微调、GPU Offload
+
+具体情况：
+
 For 7B, Batch Size: 32; Seq Len: 512
 单卡情况下，24G显存跑满，即一张3090
 
@@ -11,14 +24,6 @@ For 7B, Batch Size: 32; Seq Len: 512
 
 - 2个模型的情况下，Batch Size 可以设置为8，此时每块显卡显存占用9G。[下载地址](https://huggingface.co/wnma3mz/llama_fs2_7B/tree/main)
 - 4个模型的情况下，Batch Size 可以设置为32，此时每块显卡显存占用7G。[下载地址](https://huggingface.co/wnma3mz/llama_fs4_7B/tree/main)
-
-下一步计划，在四张显卡上基于Prompt Tuning并行微调。
-
-参考项目
-
-- [Peft](https://github.com/huggingface/peft)
-- [soft-prompt-tuning](https://github.com/kipgparker/soft-prompt-tuning/)
-- [Prompt-Tuning](https://github.com/mkshing/Prompt-Tuning/)
 
 
 ## Setup
@@ -73,9 +78,22 @@ ls -lh ckpts/7B_fs*/
 
 ## Prompt Tuning
 
-训练代码存在Bug。
+数据集下载：[alpaca7b](https://github.com/tatsu-lab/stanford_alpaca/blob/main/alpaca_data.json)
 
-For 7B
+```bash
+# 需要准备的文件如下所示，其中7B_fs4是在上一步经过拆分的模型文件。而`alpaca_data`是数据集
+├── ckpts
+│   ├── 7B_fs4
+│   │   ├── fs_consolidated.00.pth
+│   │   ├── fs_consolidated.01.pth
+│   │   ├── fs_consolidated.02.pth
+│   │   ├── fs_consolidated.03.pth
+│   │   └── params.json
+│   ├── tokenizer.model
+├── datasets
+│   ├── alpaca_data.json
+```
+
 ```bash
 # 拆分为四个模型后，在ft_main.py修改对应的配置参数
 torchrun --nproc_per_node 4 ft_main.py 
@@ -95,14 +113,6 @@ torchrun --nproc_per_node 1 example.py --ckpt_dir ckpts/7B --tokenizer_path ckpt
 torchrun --nproc_per_node 4 example.py --ckpt_dir ckpts/7B_fs4 --tokenizer_path ckpts/tokenizer.model
 # 如果拆分两个模型，则需要调整batch_size以免显存过大
 torchrun --nproc_per_node 2 example.py --ckpt_dir ckpts/7B_fs2 --max_seq_len 512 --max_batch_size 5 --tokenizer_path ckpts/tokenizer.model
-```
-
-微调后的推理
-
-当前代码暂时无法训练:(
-
-```bash
-torchrun --nproc_per_node 4 example_ft.py --ckpt_dir ckpts/7B_fs4 --tuning_ckpt_dir ckpts/7B_ft4 --tokenizer_path ckpts/tokenizer.model
 ```
 
 微调方式：使用HuggingFace和Peft的**Prompt Tuning**
@@ -138,3 +148,11 @@ See [MODEL_CARD.md](MODEL_CARD.md)
 
 ## License
 See the [LICENSE](LICENSE) file.
+
+
+## 参考项目
+
+- [Peft](https://github.com/huggingface/peft)
+- [soft-prompt-tuning](https://github.com/kipgparker/soft-prompt-tuning/)
+- [Prompt-Tuning](https://github.com/mkshing/Prompt-Tuning/)
+

@@ -52,7 +52,7 @@ class LLaMA:
                 * self.peft_config.num_transformer_submodules
             ).long()
             self.prompt_encoder.eval()
-        self.model.eval()            
+        self.model.eval()
 
     def encode(self, prompts):
         prompt_tokens = [self.tokenizer.encode(x, bos=True, eos=False) for x in prompts]
@@ -126,7 +126,9 @@ class LLaMA:
             if cur_pos > start_pos:
                 ft_prompts = None
             logits = self.model.generate(
-                tokens[:, prev_pos:cur_pos], prev_pos if prev_pos == 0 else prev_pos + prompt_pos, ft_prompts
+                tokens[:, prev_pos:cur_pos],
+                prev_pos if prev_pos == 0 else prev_pos + prompt_pos,
+                ft_prompts,
             )
             # logits = self.model.generate(tokens[:, :cur_pos], 0, ft_prompts) # too slow, can be improved
 
