@@ -84,7 +84,7 @@ There are bugs in the training code.
 
 For 7B
 ```bash
-After splitting into four models, modify the corresponding configuration file in ft_main.py
+After splitting into four models, modify the corresponding configuration params in ft_main.py
 torchrun --nproc_per_node 4 ft_main.py
 ```
 
@@ -117,10 +117,19 @@ The current code cannot be trained for the time being :(
 torchrun --nproc_per_node 4 example_ft.py --ckpt_dir ckpts/7B_fs4 --tuning_ckpt_dir ckpts/7B_ft4 --tokenizer_path ckpts/tokenizer.model
 ```
 
-See the model after **Prompt Tuning** using HuggingFace and Peft.
+
+Fine tuning method: **Prompt Tuning** with HuggingFace and Peft
+
+Based on the [alpaca7b](https://github.com/tatsu-lab/stanford_alpaca/blob/main/alpaca_data.json) dataset, see `saved-alpaca7b`.
 
 ```bash
 torchrun --nproc_per_node 4 example_ft.py --ckpt_dir ckpts/7B_fs4 --tuning_ckpt_path saved-alpaca7b/adapter_model.bin --tokenizer_path ckpts/tokenizer.model
+```
+
+Based on the [simpson](https://replicate.com/blog/fine-tune-llama-to-speak-like-homer-simpson) dialogue dataset, see `saved-simpsons7b`. (A pre-processed dataset will be released later)
+
+```bash
+torchrun --nproc_per_node 4 example_ft.py --ckpt_dir ckpts/7B_fs4 --tuning_ckpt_path saved-simpsons7b/adapter_model.bin --tokenizer_path ckpts/tokenizer.model
 ```
 
 ## Reference

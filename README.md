@@ -77,7 +77,7 @@ ls -lh ckpts/7B_fs*/
 
 For 7B
 ```bash
-# 拆分为四个模型后，在ft_main.py修改对应的配置文件
+# 拆分为四个模型后，在ft_main.py修改对应的配置参数
 torchrun --nproc_per_node 4 ft_main.py 
 ```
 
@@ -105,10 +105,18 @@ torchrun --nproc_per_node 2 example.py --ckpt_dir ckpts/7B_fs2 --max_seq_len 512
 torchrun --nproc_per_node 4 example_ft.py --ckpt_dir ckpts/7B_fs4 --tuning_ckpt_dir ckpts/7B_ft4 --tokenizer_path ckpts/tokenizer.model
 ```
 
-使用HuggingFace和Peft的Prompt Tuning后的模型见`saved-alpaca7b`。
+微调方式：使用HuggingFace和Peft的**Prompt Tuning**
+
+基于[alpaca7b](https://github.com/tatsu-lab/stanford_alpaca/blob/main/alpaca_data.json)数据集，见`saved-alpaca7b`。
 
 ```bash
 torchrun --nproc_per_node 4 example_ft.py --ckpt_dir ckpts/7B_fs4 --tuning_ckpt_path saved-alpaca7b/adapter_model.bin --tokenizer_path ckpts/tokenizer.model
+```
+
+基于[simpson](https://replicate.com/blog/fine-tune-llama-to-speak-like-homer-simpson)对话数据集，见`saved-simpsons7b`。(之后将会放出预处理后的数据集)
+
+```bash
+torchrun --nproc_per_node 4 example_ft.py --ckpt_dir ckpts/7B_fs4 --tuning_ckpt_path saved-simpsons7b/adapter_model.bin --tokenizer_path ckpts/tokenizer.model
 ```
 
 
