@@ -51,6 +51,8 @@ class LLaMA:
                 self.peft_config.num_virtual_tokens
                 * self.peft_config.num_transformer_submodules
             ).long()
+            self.prompt_encoder.eval()
+        self.model.eval()            
 
     def encode(self, prompts):
         prompt_tokens = [self.tokenizer.encode(x, bos=True, eos=False) for x in prompts]
@@ -102,7 +104,7 @@ class LLaMA:
 
         ft_prompts, prompt_pos = None, 0
         if self.prompt_encoder:
-            ft_prompts = self.get_prompt(bsz)
+            ft_prompts = self.get_prompt(bsz).detach().clone()
             prompt_pos = ft_prompts.shape[1]
 
         min_prompt_size = min([len(t) for t in prompt_tokens])
@@ -126,6 +128,7 @@ class LLaMA:
             logits = self.model.generate(
                 tokens[:, prev_pos:cur_pos], prev_pos if prev_pos == 0 else prev_pos + prompt_pos, ft_prompts
             )
+            # logits = self.model.generate(tokens[:, :cur_pos], 0, ft_prompts) # too slow, can be improved
 
             logits = banned_token(logits)  # New Add
 

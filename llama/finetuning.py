@@ -12,6 +12,7 @@ from llama.prompt_tuning import PromptEmbedding
 from dataclasses import dataclass, field
 
 from .utils import _extend_attention_mask
+IGNORE_INDEX = -100
 
 
 @dataclass
@@ -77,7 +78,7 @@ class LLaMAFT(nn.Module):
         if labels is not None:
             # Concat Prompt and Labels
             if self.prompt_encoder is not None:
-                prefix_labels = torch.full((bsz, self.num_tokens), -100)
+                prefix_labels = torch.full((bsz, self.num_tokens), IGNORE_INDEX)
                 labels = torch.cat((prefix_labels, labels), dim=1)
 
             # Calculate Loss

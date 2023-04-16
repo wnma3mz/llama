@@ -9,12 +9,12 @@ import time
 import json
 import torch.nn as nn
 from pathlib import Path
-
+import math
 from datasets import DataCollatorForSupervisedDataset, SupervisedTokenDataset
 from fairscale.nn.model_parallel.initialize import initialize_model_parallel
 
 from torch.utils.data import DataLoader
-import math
+
 from llama import (
     ModelArgs,
     TransformerTrain,
@@ -26,9 +26,6 @@ from llama import (
 from dataclasses import dataclass, field, asdict
 from tqdm import tqdm
 import numpy as np
-import warnings
-
-warnings.filterwarnings("ignore")
 
 
 @dataclass
@@ -36,7 +33,7 @@ class Params:
     # Fine-Tuning Params
     lr: float = field(default=3e-4)
     num_epochs: int = field(default=3)
-    batch_size: int = field(default=1)
+    batch_size: int = field(default=2)
 
     # File Params
     ckpt_dir: str = field(default="./ckpts/7B_fs4")
@@ -83,16 +80,17 @@ def load_model(
     world_size: int,
     max_seq_len: int,
     max_batch_size: int,
+    params,
 ) -> Tuple[LLaMAFT, Tokenizer]:
     start_time = time.time()
     checkpoints = sorted(Path(ckpt_dir).glob("*.pth"))
     ckpt_path = checkpoints[local_rank]
     checkpoint = torch.load(ckpt_path, map_location="cpu")
-    with open(Path(ckpt_dir) / "params.json", "r") as f:
-        params = json.loads(f.read())
 
+    vir_tokens = FTParams.num_virtual_tokens * FTParams.num_transformer_submodules
+    
     model_args: ModelArgs = ModelArgs(
-        max_seq_len=max_seq_len, max_batch_size=max_batch_size, **params
+        max_seq_len=max_seq_len+vir_tokens, max_batch_size=max_batch_size, **params
     )
     tokenizer = Tokenizer(model_path=tokenizer_path)
     model_args.vocab_size = tokenizer.n_words
@@ -102,18 +100,18 @@ def load_model(
     torch.set_default_tensor_type(torch.FloatTensor)
     model.load_state_dict(checkpoint, strict=False)
 
-    # Fine-Tuning Head
+
     kwargs = asdict(FTParams())
     kwargs["token_dim"] = params["dim"]
     if Params.init_prompt:
         init_token_ids = tokenizer.encode(Params.init_prompt, bos=True, eos=False)
         num_text_tokens = len(init_token_ids)
-        if num_text_tokens > kwargs["num_virtual_tokens"]:
-            init_token_ids = init_token_ids[: kwargs["num_virtual_tokens"]]
-        elif num_text_tokens < kwargs["num_virtual_tokens"]:
-            num_reps = math.ceil(kwargs["num_virtual_tokens"] / num_text_tokens)
+        if num_text_tokens > vir_tokens:
+            init_token_ids = init_token_ids[: vir_tokens]
+        elif num_text_tokens < vir_tokens:
+            num_reps = math.ceil(vir_tokens / num_text_tokens)
             init_token_ids = init_token_ids * num_reps
-        init_token_ids = init_token_ids[: kwargs["num_virtual_tokens"]]
+        init_token_ids = init_token_ids[: vir_tokens]
         word_embedding_weights = model.tok_embeddings(
             torch.LongTensor(init_token_ids).to(local_rank)
         )
@@ -128,7 +126,7 @@ def load_model(
     return model_ft, tokenizer
 
 
-def load_dataloader(fname, tokenizer):
+def load_dataloader(fname):
     s1 = time.time()
     train_dataset = SupervisedTokenDataset(fname)
     print(f"Load Dataset Cost Time: {time.time() - s1:.2f} s")
@@ -136,7 +134,7 @@ def load_dataloader(fname, tokenizer):
     train_dataloader = DataLoader(
         train_dataset,
         shuffle=True,
-        collate_fn=DataCollatorForSupervisedDataset(tokenizer=tokenizer),
+        collate_fn=DataCollatorForSupervisedDataset(),
         batch_size=Params.batch_size,
         pin_memory=False,
     )
@@ -144,10 +142,10 @@ def load_dataloader(fname, tokenizer):
 
 
 def train_func(model_ft, optimizer, train_dataloader, local_rank):
+    model_ft.to(local_rank)
     model_ft.train()
     for ep in range(Params.num_epochs):
         loss_lst = []
-        # for batch in train_dataloader:
         with tqdm(train_dataloader, ncols=80, postfix="loss: *.****") as t:
             for batch in t:
                 output = model_ft(local_rank, **batch)
@@ -156,28 +154,32 @@ def train_func(model_ft, optimizer, train_dataloader, local_rank):
                 loss.backward()
                 optimizer.step()
                 optimizer.zero_grad()
-
+                
                 loss_lst.append(loss.data.item())
                 t.postfix = "loss: {:.4f}".format(np.mean(loss_lst))
+                # t.postfix = "loss: {:.4f}".format(loss_lst[-1])
         # Just Save PromptEncoder
         train_epoch_loss = np.sum(loss_lst) / len(train_dataloader)
         train_ppl = np.exp(train_epoch_loss)
         print(f"{ep}: {train_ppl} {train_epoch_loss}")
-        torch.save(
-            model_ft.prompt_encoder.state_dict(),
-            os.path.join(
-                Params.tuning_ckpt_dir, f"prefix.{ep}.{str(local_rank).zfill(2)}.pth"
-            ),
-        )
-
-        np.save(f"loss.{ep}.npy", loss_lst)
-        # np.load(f'loss.{ep}.npy')
+        if local_rank == 0:
+            torch.save(
+                model_ft.prompt_encoder.state_dict(),
+                os.path.join(
+                    Params.tuning_ckpt_dir, f"prefix.{ep}.pth"
+                ),
+            )
+            np.save(f"loss.{ep}.npy", loss_lst)
+            # np.load(f'loss.{ep}.npy')
 
 
 def main():
     local_rank, world_size = setup_model_parallel()
     if local_rank > 0:
         sys.stdout = open(os.devnull, "w")
+
+    with open(Path(Params.ckpt_dir) / "params.json", "r") as f:
+        params = json.loads(f.read())
 
     model_ft, tokenizer = load_model(
         Params.ckpt_dir,
@@ -186,9 +188,10 @@ def main():
         world_size,
         Params.max_seq_len,
         Params.max_batch_size,
+        params,
     )
 
-    train_dataloader = load_dataloader(Params.dataset_fname, tokenizer)
+    train_dataloader = load_dataloader(Params.dataset_fname)
 
     for name, params in model_ft.decoder.named_parameters():
         params.requires_grad = False

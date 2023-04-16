@@ -30,8 +30,8 @@ PROMPT_DICT = {
         "### Instruction:\n{instruction}\n\n### Input:\n{input}\n\n### Response:"
     ),
     "prompt_no_input": (
-        "Below is an instruction that describes a task. "
-        "Write a response that appropriately completes the request.\n\n"
+        # "Below is an instruction that describes a task. "
+        # "Write a response that appropriately completes the request.\n\n"
         "### Instruction:\n{instruction}\n\n### Response:"
     ),
 }

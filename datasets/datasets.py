@@ -10,6 +10,9 @@ import torch
 import transformers
 from torch.utils.data import Dataset
 import pickle
+from llama import (
+    Tokenizer
+)
 
 IGNORE_INDEX = -100
 PROMPT_DICT = {
@@ -24,33 +27,27 @@ PROMPT_DICT = {
         "### Instruction:\n{instruction}\n\n### Response:"
     ),
 }
+CUTOFF_LEN = 512
+bos_token_id, pad_token_id, eos_token_id = 0, 0, 0
 
 
 def _tokenize_fn(
-    strings: Sequence[str], tokenizer: transformers.PreTrainedTokenizer
+    text: str, tokenizer: Tokenizer
 ) -> Dict:
     """Tokenize a list of strings."""
-    tokenized_list = [
-        tokenizer(
-            text,
-            return_tensors="pt",
-            padding="longest",
-            max_length=tokenizer.model_max_length,
-            truncation=True,
-        )
-        for text in strings
-    ]
-    input_ids = labels = [tokenized.input_ids[0] for tokenized in tokenized_list]
-    input_ids_lens = labels_lens = [
-        tokenized.input_ids.ne(tokenizer.pad_token_id).sum().item()
-        for tokenized in tokenized_list
-    ]
-    return dict(
-        input_ids=input_ids,
-        labels=labels,
-        input_ids_lens=input_ids_lens,
-        labels_lens=labels_lens,
-    )
+    token_ids = tokenizer.encode(text, bos=True, eos=False)
+    token_ids[0] = bos_token_id
+    if CUTOFF_LEN < len(token_ids):
+        token_ids = token_ids[:CUTOFF_LEN]
+    else:
+        token_ids += [eos_token_id] * (CUTOFF_LEN - len(token_ids))
+    
+    input_ = torch.tensor(token_ids)
+    
+    label_ = input_.clone()
+    label_[label_ == pad_token_id] = IGNORE_INDEX
+
+    return input_, input_
 
 
 def preprocess(
@@ -59,15 +56,15 @@ def preprocess(
     tokenizer: transformers.PreTrainedTokenizer,
 ) -> Dict:
     """Preprocess the data by tokenizing."""
-    examples = [s + t for s, t in zip(sources, targets)]
-    examples_tokenized, sources_tokenized = [
-        _tokenize_fn(strings, tokenizer) for strings in (examples, sources)
-    ]
-    input_ids = examples_tokenized["input_ids"]
-    labels = copy.deepcopy(input_ids)
-    for label, source_len in zip(labels, sources_tokenized["input_ids_lens"]):
-        label[:source_len] = IGNORE_INDEX
-    return dict(input_ids=input_ids, labels=labels)
+    input_ids, labels = [], []
+    for s, t in zip(sources, targets):
+        input_, label_ = _tokenize_fn(s + t, tokenizer)
+        input_ids.append(input_)
+        labels.append(label_)
+    return dict(
+        input_ids=input_ids,
+        labels=labels,
+    )
 
 
 def _make_w_io_base(f, mode: str):
@@ -116,15 +113,13 @@ def jload(f, mode="r"):
 @dataclass
 class DataCollatorForSupervisedDataset(object):
     """Collate examples for supervised fine-tuning."""
-
-    tokenizer: transformers.PreTrainedTokenizer
-
     def __call__(self, instances: Sequence[Dict]) -> Dict[str, torch.Tensor]:
         input_ids, labels = tuple(
             [instance[key] for instance in instances] for key in ("input_ids", "labels")
         )
+        pad_token_id = IGNORE_INDEX
         input_ids = torch.nn.utils.rnn.pad_sequence(
-            input_ids, batch_first=True, padding_value=self.tokenizer.pad_token_id
+            input_ids, batch_first=True, padding_value=pad_token_id
         )
         labels = torch.nn.utils.rnn.pad_sequence(
             labels, batch_first=True, padding_value=IGNORE_INDEX
@@ -132,14 +127,14 @@ class DataCollatorForSupervisedDataset(object):
         return dict(
             input_ids=input_ids,
             labels=labels,
-            attention_mask=input_ids.ne(self.tokenizer.pad_token_id),
+            attention_mask=input_ids.ne(pad_token_id),
         )
 
 
 class SupervisedDataset(Dataset):
     """Dataset for supervised fine-tuning."""
 
-    def __init__(self, data_path: str, tokenizer: transformers.PreTrainedTokenizer):
+    def __init__(self, data_path: str, tokenizer: Tokenizer):
         super(SupervisedDataset, self).__init__()
         list_data_dict = jload(data_path)
 
@@ -154,7 +149,7 @@ class SupervisedDataset(Dataset):
             for example in list_data_dict
         ]
         targets = [
-            f"{example['output']}{tokenizer.eos_token}" for example in list_data_dict
+            f"{example['output']}" for example in list_data_dict
         ]
 
         data_dict = preprocess(sources, targets, tokenizer)
@@ -178,18 +173,6 @@ class SupervisedTokenDataset(Dataset):
             data_dict = pickle.load(f)
         self.input_ids, self.labels = data_dict["input_ids"], data_dict["labels"]
 
-        # max_len = len(data_dict["input_ids"]) // 10000  # 只取/10测试
-
-        i = 0
-        self.input_ids, self.labels = [], []
-        for input_ids, labels in zip(data_dict["input_ids"], data_dict["labels"]):
-            if len(input_ids) < 480:
-                self.input_ids.append(input_ids)
-                self.labels.append(labels)
-                i += 1
-            # if i > max_len:
-            #     break
-
     def __len__(self):
         return len(self.input_ids)
 
@@ -197,42 +180,31 @@ class SupervisedTokenDataset(Dataset):
         return dict(input_ids=self.input_ids[i], labels=self.labels[i])
 
 
-def make_supervised_data_module(
-    tokenizer: transformers.PreTrainedTokenizer, data_path: str
-) -> Dict:
-    """Make dataset and collator for supervised fine-tuning."""
-    train_dataset = SupervisedDataset(tokenizer=tokenizer, data_path=data_path)
-    data_collator = DataCollatorForSupervisedDataset(tokenizer=tokenizer)
-    return dict(
-        train_dataset=train_dataset, eval_dataset=None, data_collator=data_collator
-    )
-
 
 if __name__ == "__main__":
-    # from tokenization_llama import LLaMATokenizer
+    tokenizer = Tokenizer(model_path="ckpts/tokenizer.model")
 
-    # tokenizer = LLaMATokenizer.from_pretrained("/root/ljh/LLaMA/tokenizer.model")
-    # if tokenizer.pad_token_id is None:
-    #     tokenizer.pad_token_id = tokenizer.eos_token_id
-    tokenizer = ...
     s1 = time.time()
-    fname = "../trans_chinese_alpaca_data.json"
-    data_module = make_supervised_data_module(tokenizer, fname)
+    fname = "datasets/alpaca_data.json"
+    data = {
+        "instruction": "Propose a strategy to build an effective landing page.",
+        "input": "",
+        "output": "A strategy to build an effective landing page is to design a page that is easy to scan, visually appealing, and speaks directly to the target audience. The page should have a clear headline that informs users of the page\u2019s purpose. It should also contain helpful, relevant information and a compelling call to action. Additionally, it should leverage A/B testing to test different versions of the page to assess its effectiveness."
+    }
+    s = PROMPT_DICT["prompt_no_input"].format_map(data)
+    t = data['output']
+    examples = s+t
+
+    data_module = SupervisedDataset(fname, tokenizer)
     print("Cost Time: {}s".format(time.time() - s1))
 
-    # from torch.utils.data import DataLoader
-    # from transformers import default_data_collator, get_linear_schedule_with_warmup
 
-    # train_dataloader = DataLoader(
-    #     data_module["train_dataset"],
-    #     shuffle=False,
-    #     collate_fn=default_data_collator,
-    #     batch_size=5,
-    #     pin_memory=True,
-    # )
-
-    train_data = data_module["train_dataset"]
     with open(fname.split(".json")[0] + "_token.pkl", "wb") as f:
         data_dict = pickle.dump(
-            {"input_ids": train_data.input_ids, "labels": train_data.labels}, f
+            {"input_ids": data_module.input_ids, "labels": data_module.labels}, f
         )
+
+    s1 = time.time()
+    with open(fname.split(".json")[0] + "_token.pkl", "rb") as f:
+        data_dict = pickle.load(f)
+    print("Cost Time: {}s".format(time.time() - s1))
