@@ -241,3 +241,37 @@ class Transformer(nn.Module):
         h = self.norm(h)
         output = self.output(h[:, -1, :])  # only compute last logits
         return output.float()
+
+    def forward(
+        self,
+        input_ids: Optional[torch.LongTensor] = None,
+        input_embeds: Optional[torch.LongTensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+    ):
+        h = input_embeds if input_embeds is not None else self.tok_embeddings(input_ids)
+        _bsz, seqlen, dim = h.shape
+
+        start_pos = 0
+        self.freqs_cis = self.freqs_cis.to(h.device)
+        freqs_cis = self.freqs_cis[start_pos : start_pos + seqlen]
+
+        mask = None
+        if attention_mask is not None:
+            attention_mask = attention_mask.to(h.device)
+            past_key_values_length = 0  # TODO
+            combined_attention_mask = _make_causal_mask(
+                (_bsz, seqlen),
+                h.dtype,
+                device=h.device,
+                past_key_values_length=past_key_values_length,
+            )
+            mask = (
+                _expand_mask(attention_mask, h.dtype, seqlen) + combined_attention_mask
+            )
+
+        for layer in self.layers:
+            h = layer(h, start_pos, freqs_cis, mask)
+        h = self.norm(h)
+
+        logits = self.output(h).float()
+        return logits

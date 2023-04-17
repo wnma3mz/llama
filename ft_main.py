@@ -22,11 +22,13 @@ from torch.utils.data import DataLoader
 from llama import (
     ModelArgs,
     TransformerTrain,
+    Transformer,
     Tokenizer,
     LLaMAFT,
     PromptEmbedding,
     PromptTuningConfig,
 )
+# from llama.model_train2 import Transformer
 from dataclasses import dataclass, field, asdict
 from tqdm import tqdm
 import numpy as np
@@ -36,13 +38,13 @@ import numpy as np
 class Params:
     # Fine-Tuning Params
     lr: float = field(default=3e-4)
-    num_epochs: int = field(default=3)
+    num_epochs: int = field(default=1)
     batch_size: int = field(default=2)
 
     # File Params
     ckpt_dir: str = field(default="./ckpts/7B_fs4")
     tuning_ckpt_dir: str = field(default="./ckpts/7B_ft4")
-    dataset_fname: str = field(default="./datasets/alpaca_data")  # Just Test
+    dataset_fname: str = field(default="./datasets/alpaca_data_cleaned_1k")  # Just Test
     tokenizer_path: str = field(default="./ckpts/tokenizer.model")
 
     init_prompt: str = field(
@@ -97,17 +99,19 @@ def load_model(
         max_seq_len=max_seq_len + vir_tokens, max_batch_size=max_batch_size, **params
     )
     tokenizer = Tokenizer(model_path=tokenizer_path)
+    # tokenizer.pad_token_id = 0
     model_args.vocab_size = tokenizer.n_words
     torch.set_default_tensor_type(torch.cuda.HalfTensor)
     # torch.set_default_tensor_type(torch.cuda.FloatTensor)
     model = TransformerTrain(model_args)
+    # model = Transformer(model_args)
     torch.set_default_tensor_type(torch.FloatTensor)
     model.load_state_dict(checkpoint, strict=False)
 
     kwargs = asdict(FTParams())
     kwargs["token_dim"] = params["dim"]
     if Params.init_prompt:
-        init_token_ids = tokenizer.encode(Params.init_prompt, bos=True, eos=False)
+        init_token_ids = tokenizer.encode(Params.init_prompt, bos=True, eos=True)
         num_text_tokens = len(init_token_ids)
         if num_text_tokens > vir_tokens:
             init_token_ids = init_token_ids[:vir_tokens]
@@ -139,8 +143,7 @@ def load_dataloader(fname: str, tokenizer: Tokenizer):
         # First Load to pickle the Dataset
         train_dataset = SupervisedDataset(fname + ".json", tokenizer)
         import pickle
-
-        with open(fname.split(".json")[0] + "_token.pkl", "wb") as f:
+        with open(fname.split(".json")[0]+".pkl", "wb") as f:
             pickle.dump(
                 {"input_ids": train_dataset.input_ids, "labels": train_dataset.labels},
                 f,
@@ -158,8 +161,7 @@ def load_dataloader(fname: str, tokenizer: Tokenizer):
 
 
 def train_func(model_ft, optimizer, train_dataloader, local_rank):
-    model_ft.to(local_rank)
-    model_ft.train()
+    model_ft.prompt_encoder.train()
     for ep in range(Params.num_epochs):
         loss_lst = []
         with tqdm(train_dataloader, ncols=80, postfix="loss: *.****") as t:

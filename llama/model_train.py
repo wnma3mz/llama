@@ -92,7 +92,6 @@ class Attention(nn.Module):
         cos,
         sin,
         mask: Optional[torch.Tensor],
-        start_pos: int = 0,
     ):
         bsz, seqlen, _ = x.shape
         xq, xk, xv = self.wq(x), self.wk(x), self.wv(x)
@@ -103,8 +102,8 @@ class Attention(nn.Module):
 
         xq, xk = apply_rotary_pos_emb(xq, xk, cos, sin)
 
-        keys = xk[:, start_pos : start_pos + seqlen]
-        values = xv[:, start_pos : start_pos + seqlen]
+        keys = xk[:, :seqlen]
+        values = xv[:, :seqlen]
 
         xq = xq.transpose(1, 2)
         keys = keys.transpose(1, 2)
@@ -164,9 +163,8 @@ class TransformerBlock(nn.Module):
         cos,
         sin,
         mask: Optional[torch.Tensor],
-        start_pos: int = 0,
     ):
-        h = x + self.attention(self.attention_norm(x), cos, sin, mask, start_pos)
+        h = x + self.attention(self.attention_norm(x), cos, sin, mask)
         out = h + self.feed_forward(self.ffn_norm(h))
         return out
 
@@ -235,21 +233,14 @@ class Transformer(nn.Module):
         input_ids: Optional[torch.LongTensor] = None,
         input_embeds: Optional[torch.LongTensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
-        start_pos: int = 0,  # In Train
     ):
-        if input_embeds is None:
-            _bsz, seqlen = input_ids.shape
-            h = self.tok_embeddings(input_ids)
-        else:
-            # For Prompt Tuning
-            _bsz, seqlen, dim = input_embeds.shape
-            h = input_embeds
+        h = input_embeds if input_embeds is not None else self.tok_embeddings(input_ids)
+        _bsz, seqlen, dim = input_embeds.shape
 
-        if attention_mask is None:
-            mask = None
-        else:
+        mask = None
+        past_key_values_length = 0  # TODO
+        if attention_mask is not None:
             attention_mask = attention_mask.to(h.device)
-            past_key_values_length = 0  # TODO
             combined_attention_mask = _make_causal_mask(
                 (_bsz, seqlen),
                 h.dtype,

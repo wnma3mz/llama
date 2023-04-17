@@ -26,24 +26,22 @@ PROMPT_DICT = {
     ),
 }
 CUTOFF_LEN = 512
-bos_token_id, pad_token_id, eos_token_id = 0, 0, 0
 
 
 def _tokenize_fn(text: str, tokenizer: Tokenizer) -> Dict:
     """Tokenize a list of strings."""
     token_ids = tokenizer.encode(text, bos=True, eos=False)
-    token_ids[0] = bos_token_id
+    # Ignore the eos_id, because of the eos_id == pad_id
     if CUTOFF_LEN < len(token_ids):
         token_ids = token_ids[:CUTOFF_LEN]
     else:
-        token_ids += [eos_token_id] * (CUTOFF_LEN - len(token_ids))
-
+        token_ids += [tokenizer.pad_token_id] * (CUTOFF_LEN - len(token_ids))
     input_ = torch.tensor(token_ids)
 
     label_ = input_.clone()
-    label_[label_ == pad_token_id] = IGNORE_INDEX
-
-    return input_, input_
+    label_[label_ == tokenizer.pad_token_id] = IGNORE_INDEX
+    
+    return input_, label_
 
 
 def preprocess(

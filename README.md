@@ -94,6 +94,8 @@ ls -lh ckpts/7B_fs*/
 │   ├── alpaca_data.json
 ```
 
+微调后效果糟糕，检查了输入输出以及模型结构，或许可以尝试加上`torch.optim.lr_scheduler.LambdaLR`
+
 ```bash
 # 拆分为四个模型后，在ft_main.py修改对应的配置参数
 torchrun --nproc_per_node 4 ft_main.py 

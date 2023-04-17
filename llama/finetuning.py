@@ -50,19 +50,16 @@ class LLaMAFT(nn.Module):
         labels: Optional[torch.LongTensor] = None,
     ):
         if input_ids is not None:
-            input_ids = input_ids.to(local_rank)
-            input_embeds = self.decoder.tok_embeddings(input_ids)
+            input_embeds = self.decoder.tok_embeddings(input_ids.to(local_rank))
         elif input_embeds is not None:
             input_embeds = input_embeds.to(local_rank)
         else:
             raise SyntaxError("Please input input_ids or input_embeds.")
 
-        bsz, seqlen_o, dim = input_embeds.shape
-
         if self.prompt_encoder is not None:
             # Concat Prompt and Embedding
-            prompts = self.get_prompt(bsz, local_rank)
-            prompts = prompts.to(input_embeds.dtype).to(local_rank)
+            prompts = self.get_prompt(input_ids.shape[0], local_rank)
+            prompts = prompts.to(input_embeds.dtype)
             input_embeds = torch.cat((prompts, input_embeds), dim=1)
 
         bsz, seqlen, dim = input_embeds.shape

@@ -101,6 +101,8 @@ Download the dataset：[alpaca7b](https://github.com/tatsu-lab/stanford_alpaca/b
 │   ├── alpaca_data.json
 ```
 
+Fine-tuned with poor results, checked input and output as well as model structure, maybe try adding `torch.optim.lr_scheduler.LambdaLR`
+
 ```bash
 After splitting into four models, modify the corresponding configuration params in ft_main.py
 torchrun --nproc_per_node 4 ft_main.py
