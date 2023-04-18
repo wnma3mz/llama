@@ -94,7 +94,12 @@ ls -lh ckpts/7B_fs*/
 │   ├── alpaca_data.json
 ```
 
-微调后效果糟糕，检查了输入输出以及模型结构，或许可以尝试加上`torch.optim.lr_scheduler.LambdaLR`
+在`ft_main.py`中使用函数`train_func`进行微调始终无法得到一个好的效果。于是这里还是换成了用`transformers.Trainer`进行训练 :(
+
+使用`train_func`训练3个epoch大约耗时24小时，但是`transformers.Trainer`仅需6小时。
+
+或许在之后有时间研究Trainer的实现细节。目前可以排除与优化器的相关因素。
+
 
 ```bash
 # 拆分为四个模型后，在ft_main.py修改对应的配置参数
@@ -121,14 +126,11 @@ torchrun --nproc_per_node 2 example.py --ckpt_dir ckpts/7B_fs2 --max_seq_len 512
 
 基于[alpaca7b](https://github.com/tatsu-lab/stanford_alpaca/blob/main/alpaca_data.json)数据集，见`saved-alpaca7b`。
 
-```bash
-torchrun --nproc_per_node 4 example_ft.py --ckpt_dir ckpts/7B_fs4 --tuning_ckpt_path saved-alpaca7b/adapter_model.bin --tokenizer_path ckpts/tokenizer.model
-```
-
 基于[simpson](https://replicate.com/blog/fine-tune-llama-to-speak-like-homer-simpson)对话数据集，见`saved-simpsons7b`。(之后将会放出预处理后的数据集)
 
 ```bash
-torchrun --nproc_per_node 4 example_ft.py --ckpt_dir ckpts/7B_fs4 --tuning_ckpt_path saved-simpsons7b/adapter_model.bin --tokenizer_path ckpts/tokenizer.model
+# 将$(ckpt_path)换成saved-alpaca7b/adapter_model.bin、saved-simpsons7b/adapter_model.bin
+torchrun --nproc_per_node 4 example_ft.py --ckpt_dir ckpts/7B_fs4 --tuning_ckpt_path $(ckpt_path) --tokenizer_path ckpts/tokenizer.model
 ```
 
 

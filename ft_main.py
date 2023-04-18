@@ -22,13 +22,12 @@ from torch.utils.data import DataLoader
 from llama import (
     ModelArgs,
     TransformerTrain,
-    Transformer,
+    TransformerTrainHF,
     Tokenizer,
     LLaMAFT,
     PromptEmbedding,
     PromptTuningConfig,
 )
-# from llama.model_train2 import Transformer
 from dataclasses import dataclass, field, asdict
 from tqdm import tqdm
 import numpy as np
@@ -38,13 +37,13 @@ import numpy as np
 class Params:
     # Fine-Tuning Params
     lr: float = field(default=3e-4)
-    num_epochs: int = field(default=1)
+    num_epochs: int = field(default=3)
     batch_size: int = field(default=2)
 
     # File Params
     ckpt_dir: str = field(default="./ckpts/7B_fs4")
     tuning_ckpt_dir: str = field(default="./ckpts/7B_ft4")
-    dataset_fname: str = field(default="./datasets/alpaca_data_cleaned_1k")  # Just Test
+    dataset_fname: str = field(default="./datasets/alpaca_data")  # Just Test
     tokenizer_path: str = field(default="./ckpts/tokenizer.model")
 
     init_prompt: str = field(
@@ -104,7 +103,6 @@ def load_model(
     torch.set_default_tensor_type(torch.cuda.HalfTensor)
     # torch.set_default_tensor_type(torch.cuda.FloatTensor)
     model = TransformerTrain(model_args)
-    # model = Transformer(model_args)
     torch.set_default_tensor_type(torch.FloatTensor)
     model.load_state_dict(checkpoint, strict=False)
 
@@ -152,12 +150,12 @@ def load_dataloader(fname: str, tokenizer: Tokenizer):
 
     train_dataloader = DataLoader(
         train_dataset,
-        shuffle=True,
+        shuffle=False,
         collate_fn=DataCollatorForSupervisedDataset(),
         batch_size=Params.batch_size,
         pin_memory=False,
     )
-    return train_dataloader
+    return train_dataset, train_dataloader
 
 
 def train_func(model_ft, optimizer, train_dataloader, local_rank):
@@ -167,7 +165,7 @@ def train_func(model_ft, optimizer, train_dataloader, local_rank):
         with tqdm(train_dataloader, ncols=80, postfix="loss: *.****") as t:
             for batch in t:
                 output = model_ft(local_rank, **batch)
-                loss = output.loss
+                loss = output["loss"]
 
                 loss.backward()
                 optimizer.step()
@@ -207,17 +205,42 @@ def main():
         params,
     )
 
-    train_dataloader = load_dataloader(Params.dataset_fname, tokenizer)
 
     for name, params in model_ft.decoder.named_parameters():
         params.requires_grad = False
 
-    base_opt = torch.optim.AdamW
-    optimizer = base_opt(
-        filter(lambda p: p.requires_grad, model_ft.parameters()), lr=Params.lr
+    train_dataset, train_dataloader = load_dataloader(Params.dataset_fname, tokenizer)
+    # base_opt = torch.optim.AdamW
+    # optimizer = base_opt(
+    #     filter(lambda p: p.requires_grad, model_ft.parameters()), lr=Params.lr
+    # )
+    # train_func(model_ft, optimizer, train_dataloader, local_rank)
+    import transformers
+    trainer = transformers.Trainer(
+        model=model_ft,
+        train_dataset=train_dataset,
+        args=transformers.TrainingArguments(
+            per_device_train_batch_size=Params.batch_size,
+            warmup_steps=1000,
+            num_train_epochs=Params.num_epochs,
+            learning_rate=Params.lr,
+            fp16=True,
+            logging_steps=200,
+            save_strategy="steps",
+            save_steps=2000,
+            output_dir=".",
+            save_total_limit=3,
+            load_best_model_at_end=False,
+            ddp_find_unused_parameters=None,
+        )
     )
-    train_func(model_ft, optimizer, train_dataloader, local_rank)
-
+    # It has been pre-processed in the Dataset, so we don't need it
+    # data_collator=transformers.DataCollatorForLanguageModeling(tokenizer, mlm=False),
+    trainer.train()
+    torch.save(
+        model_ft.prompt_encoder.state_dict(),
+        os.path.join(Params.tuning_ckpt_dir, f"prefix.0.pth"),
+    )
 
 if __name__ == "__main__":
     if not os.path.isdir(Params.tuning_ckpt_dir):

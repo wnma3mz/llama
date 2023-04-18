@@ -43,12 +43,13 @@ class LLaMAFT(nn.Module):
 
     def forward(
         self,
-        local_rank,
+        # local_rank,
         input_ids: Optional[torch.LongTensor] = None,
         input_embeds: Optional[torch.LongTensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
         labels: Optional[torch.LongTensor] = None,
     ):
+        local_rank = next(self.decoder.tok_embeddings.parameters()).device
         if input_ids is not None:
             input_embeds = self.decoder.tok_embeddings(input_ids.to(local_rank))
         elif input_embeds is not None:
@@ -76,7 +77,7 @@ class LLaMAFT(nn.Module):
         if labels is not None:
             # Concat Prompt and Labels
             if self.prompt_encoder is not None:
-                prefix_labels = torch.full((bsz, self.num_tokens), IGNORE_INDEX)
+                prefix_labels = torch.full((bsz, self.num_tokens), IGNORE_INDEX).to(labels.device)
                 labels = torch.cat((prefix_labels, labels), dim=1)
 
             # Calculate Loss
@@ -87,5 +88,6 @@ class LLaMAFT(nn.Module):
             shift_logits = shift_logits.view(-1, self.decoder.vocab_size)
             shift_labels = shift_labels.view(-1).to(shift_logits.device)
             loss = loss_fn(shift_logits, shift_labels)
-            return ModelOutput(loss=loss, logits=logits)
-        return ModelOutput(loss=None, logits=logits)
+            # return ModelOutput(loss=loss, logits=logits)
+            return {"loss": loss, "logits": logits}
+        return {"loss": None, "logits": logits}

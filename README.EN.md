@@ -101,7 +101,11 @@ Download the dataset：[alpaca7b](https://github.com/tatsu-lab/stanford_alpaca/b
 │   ├── alpaca_data.json
 ```
 
-Fine-tuned with poor results, checked input and output as well as model structure, maybe try adding `torch.optim.lr_scheduler.LambdaLR`
+Fine-tuning with the function `train_func` in `ft_main.py` never gave a good result. So here I switched to using `transformers.Trainer` for training instead :(
+  
+Training 3 epochs with `train_func` takes about 24 hours, but `transformers.Trainer` takes only 6 hours.
+
+Perhaps there will be time to work on the details of the Trainer implementation later. For now I can rule out optimiser-related factors.
 
 ```bash
 After splitting into four models, modify the corresponding configuration params in ft_main.py
@@ -133,14 +137,11 @@ Fine tuning method: **Prompt Tuning** with HuggingFace and Peft
 
 Based on the [alpaca7b](https://github.com/tatsu-lab/stanford_alpaca/blob/main/alpaca_data.json) dataset, see `saved-alpaca7b`.
 
-```bash
-torchrun --nproc_per_node 4 example_ft.py --ckpt_dir ckpts/7B_fs4 --tuning_ckpt_path saved-alpaca7b/adapter_model.bin --tokenizer_path ckpts/tokenizer.model
-```
-
 Based on the [simpson](https://replicate.com/blog/fine-tune-llama-to-speak-like-homer-simpson) dialogue dataset, see `saved-simpsons7b`. (A pre-processed dataset will be released later)
 
 ```bash
-torchrun --nproc_per_node 4 example_ft.py --ckpt_dir ckpts/7B_fs4 --tuning_ckpt_path saved-simpsons7b/adapter_model.bin --tokenizer_path ckpts/tokenizer.model
+# Replace $(ckpt_path) with saved-alpaca7b/adapter_model.bin, saved-simpsons7b/adapter_model.bin
+torchrun --nproc_per_node 4 example_ft.py --ckpt_dir ckpts/7B_fs4 --tuning_ckpt_path $(ckpt_path) --tokenizer_path ckpts/tokenizer.model
 ```
 
 ## Reference
