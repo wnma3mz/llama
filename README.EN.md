@@ -1,4 +1,4 @@
-# LLaMA 
+# LLaMA
 
 [中文](README.md) [English](README.EN.md) [Origin](README.LLaMA.md)
 
@@ -6,8 +6,8 @@ This project is based on a modification of [LLaMA](https://github.com/facebookre
 
 Completed functions:
 
-- [x] Split model to allow parallel inference on a multi-graphics card small memory machine
-- [x] Finishing parallel fine-tuning
+- [X] Split model to allow parallel inference on a multi-graphics card small memory machine
+- [X] Finishing parallel fine-tuning
 
 Next step:
 
@@ -26,7 +26,6 @@ Even if you adjust the Batch Size and Seq Len, you still need more than 12G of v
 - In the case of 2 models, the Batch Size can be set to 8, which occupies 9G of video memory per card.[download](https://huggingface.co/wnma3mz/llama_fs2_7B/tree/main)
 - For 4 models, the Batch Size can be set to 32, which is 7G per card.[download](https://huggingface.co/wnma3mz/llama_fs4_7B/tree/main)
 
-
 ```bash
 # A ckpts folder exists in the current project and the file structure is roughly as shown below.
 ckpts
@@ -40,14 +39,16 @@ ckpts
 └── tokenizer.model
 ```
 
-
 ## Setup
 
 In a conda env with pytorch / cuda available, run:
+
 ```
 pip install -r requirements.txt
 ```
+
 Then in this repository:
+
 ```
 pip install -e .
 ```
@@ -62,23 +63,13 @@ Edit the `download.sh` script with the signed url provided in the email to downl
 If you have an older version of torch, you need to replace `torchrun` with `python3 -m torch.distributed.run`
 
 Modify n in split_model. n is the number of models after splitting. It will take some time to save the model file, so please be patient.
+
 ```bash
 python3 split_model.py
 ```
 
 After running, a folder will appear under the ckpts folder, 7B_fs{n}. Inside it are stored n model files and a params.json.
 
-```bash
-ls -lh ckpts/7B_fs*/
-```
-
-At this point the individual model files are still 13G in size, so you can uncomment line 61 of the ``example.py`` file. After running the following command, the model file will be re-saved (which will take some time) and the size of the single model file will be 13/n G. You can continue to comment out line 61 when reasoning later to speed up the model read time.
-```bash
-# need to change n to the corresponding number
-torchrun --nproc_per_node n example.py --ckpt_dir ckpts/7B_fsn --tokenizer_path ckpts/tokenizer.model
-```
-
-Check the saved file.
 ```bash
 ls -lh ckpts/7B_fs*/
 ```
@@ -102,7 +93,7 @@ Download the dataset：[alpaca7b](https://github.com/tatsu-lab/stanford_alpaca/b
 ```
 
 Fine-tuning with the function `train_func` in `ft_main.py` never gave a good result. So here I switched to using `transformers.Trainer` for training instead :(
-  
+
 Training 3 epochs with `train_func` takes about 24 hours, but `transformers.Trainer` takes only 6 hours.
 
 Perhaps there will be time to work on the details of the Trainer implementation later. For now I can rule out optimiser-related factors.
@@ -115,6 +106,7 @@ torchrun --nproc_per_node 4 ft_main.py
 ## Inference
 
 The provided `example.py` can be run on a single or multi-gpu node with `torchrun` and will output completions for two pre-defined prompts. Using `TARGET_FOLDER` as defined in `download.sh`:
+
 ```bash
 torchrun --nproc_per_node MP example.py --ckpt_dir $TARGET_FOLDER/model_size --tokenizer_path $TARGET_FOLDER/tokenizer.model
 ```
@@ -124,6 +116,7 @@ torchrun --nproc_per_node MP example.py --ckpt_dir $TARGET_FOLDER/model_size --t
 Inference before fine-tuning
 
 For 7B
+
 ```bash
 # Single Model
 torchrun --nproc_per_node 1 example.py --ckpt_dir ckpts/7B --tokenizer_path ckpts/tokenizer.model
@@ -158,11 +151,12 @@ LLaMA: Open and Efficient Foundation Language Models -- https://arxiv.org/abs/23
 ```
 
 ## Model Card
+
 See [MODEL_CARD.md](MODEL_CARD.md)
 
 ## License
-See the [LICENSE](LICENSE) file.
 
+See the [LICENSE](LICENSE) file.
 
 ## Reference project
 

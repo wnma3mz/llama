@@ -44,7 +44,7 @@ if __name__ == "__main__":
             new_w_lst = [base_ckpt[k]] * n
 
         for ckpt, w in zip(split_ckpt_lst, new_w_lst):
-            ckpt[k] = w
+            ckpt[k] = w.clone()
 
     new_ckpt_dir = ckpt_dir + f"_fs{n}"
     if not os.path.isdir(new_ckpt_dir):

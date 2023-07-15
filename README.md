@@ -1,4 +1,4 @@
-# LLaMA 
+# LLaMA
 
 [中文](README.md) [English](README.EN.md) [Origin](README.LLaMA.md)
 
@@ -6,8 +6,8 @@
 
 完成功能：
 
-- [x] 拆分模型，可以在多显卡小显存机器上并行推理
-- [x] 完成并行微调
+- [X] 拆分模型，可以在多显卡小显存机器上并行推理
+- [X] 完成并行微调
 
 下一步：
 
@@ -25,17 +25,17 @@ For 7B, Batch Size: 32; Seq Len: 512
 - 2个模型的情况下，Batch Size 可以设置为8，此时每块显卡显存占用9G。[下载地址](https://huggingface.co/wnma3mz/llama_fs2_7B/tree/main)
 - 4个模型的情况下，Batch Size 可以设置为32，此时每块显卡显存占用7G。[下载地址](https://huggingface.co/wnma3mz/llama_fs4_7B/tree/main)
 
-
 ## Setup
 
 ```
 pip install -r requirements.txt
 ```
+
 Then in this repository:
+
 ```
 pip install -e .
 ```
-
 
 ```bash
 # 当前项目中存在一个ckpts文件夹，文件架构大致如下所示。
@@ -52,26 +52,16 @@ ckpts
 
 ## Split Model
 
-如果是老版本的torch，需要将`torchrun`更换为`python3 -m torch.distributed.run`
+如果是老版本的torch，需要将 `torchrun`更换为 `python3 -m torch.distributed.run`
 
 修改split_model中的n。n为拆分后的模型数量。保存模型文件需要花费一定的时间，请耐心等待。
+
 ```bash
 python3 split_model.py
 ```
 
 运行结束后，在ckpts文件夹下会出现一个文件夹，7B_fs{n}。里面存放了n个模型文件和一个params.json。
 
-```bash
-ls -lh ckpts/7B_fs*/
-```
-
-此时单个模型文件大小依旧为13G，可以将`example.py`文件61行注释取消。在运行下面命令后，会重新保存模型文件（花费一定的时间），此时单个模型文件的大小会变为13/n G。之后进行推理时，可以继续注释61行，以加速模型读取时间。
-```bash
-# 需要将n改为对应数字
-torchrun --nproc_per_node n example.py --ckpt_dir ckpts/7B_fsn --tokenizer_path ckpts/tokenizer.model
-```
-
-检查保存后的文件。
 ```bash
 ls -lh ckpts/7B_fs*/
 ```
@@ -94,12 +84,11 @@ ls -lh ckpts/7B_fs*/
 │   ├── alpaca_data.json
 ```
 
-在`ft_main.py`中使用函数`train_func`进行微调始终无法得到一个好的效果。于是这里还是换成了用`transformers.Trainer`进行训练 :(
+在 `ft_main.py`中使用函数 `train_func`进行微调始终无法得到一个好的效果。于是这里还是换成了用 `transformers.Trainer`进行训练 :(
 
-使用`train_func`训练3个epoch大约耗时24小时，但是`transformers.Trainer`仅需6小时。
+使用 `train_func`训练3个epoch大约耗时24小时，但是 `transformers.Trainer`仅需6小时。
 
 或许在之后有时间研究Trainer的实现细节。目前可以排除与优化器的相关因素。
-
 
 ```bash
 # 拆分为四个模型后，在ft_main.py修改对应的配置参数
@@ -113,6 +102,7 @@ torchrun --nproc_per_node 4 ft_main.py
 微调前的推理
 
 For 7B
+
 ```bash
 # 单个模型
 torchrun --nproc_per_node 1 example.py --ckpt_dir ckpts/7B --tokenizer_path ckpts/tokenizer.model
@@ -124,15 +114,14 @@ torchrun --nproc_per_node 2 example.py --ckpt_dir ckpts/7B_fs2 --max_seq_len 512
 
 微调方式：使用HuggingFace和Peft的**Prompt Tuning**
 
-基于[alpaca7b](https://github.com/tatsu-lab/stanford_alpaca/blob/main/alpaca_data.json)数据集，见`saved-alpaca7b`。
+基于[alpaca7b](https://github.com/tatsu-lab/stanford_alpaca/blob/main/alpaca_data.json)数据集，见 `saved-alpaca7b`。
 
-基于[simpson](https://replicate.com/blog/fine-tune-llama-to-speak-like-homer-simpson)对话数据集，见`saved-simpsons7b`。(之后将会放出预处理后的数据集)
+基于[simpson](https://replicate.com/blog/fine-tune-llama-to-speak-like-homer-simpson)对话数据集，见 `saved-simpsons7b`。(之后将会放出预处理后的数据集)
 
 ```bash
 # 将$(ckpt_path)换成saved-alpaca7b/adapter_model.bin、saved-simpsons7b/adapter_model.bin
 torchrun --nproc_per_node 4 example_ft.py --ckpt_dir ckpts/7B_fs4 --tuning_ckpt_path $(ckpt_path) --tokenizer_path ckpts/tokenizer.model
 ```
-
 
 ## Reference
 
@@ -148,15 +137,15 @@ LLaMA: Open and Efficient Foundation Language Models -- https://arxiv.org/abs/23
 ```
 
 ## Model Card
+
 See [MODEL_CARD.md](MODEL_CARD.md)
 
 ## License
-See the [LICENSE](LICENSE) file.
 
+See the [LICENSE](LICENSE) file.
 
 ## 参考项目
 
 - [Peft](https://github.com/huggingface/peft)
 - [soft-prompt-tuning](https://github.com/kipgparker/soft-prompt-tuning/)
 - [Prompt-Tuning](https://github.com/mkshing/Prompt-Tuning/)
-
